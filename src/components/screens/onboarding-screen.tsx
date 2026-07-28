@@ -75,8 +75,8 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
         <div className="pt-6">
           <div className="mb-3 rounded-[var(--radius-lg)] bg-[var(--accent-mist)] px-3 py-2 text-[12px] font-medium text-[var(--ink-soft)]">
             {locale === 'vi'
-              ? 'Invite beta · đăng nhập demo, dữ liệu chỉ trên máy này.'
-              : 'Invite beta · demo auth, data stays on this device only.'}
+              ? 'Invite beta · lưu cấu hình một lần rồi bắt đầu tập ngay.'
+              : 'Invite beta · tune once and start your first workout right away.'}
           </div>
           <div className="flex items-center justify-between gap-3">
             <p className="text-[12px] font-semibold uppercase tracking-[0.13em] text-[var(--accent)]">
@@ -277,14 +277,26 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               })
             }
           >
-            {t('continue')}
+            {t('saveAndContinue')}
           </Button>
           <button
             type="button"
-            onClick={() => onComplete({ onboarded: true, locale })}
+            onClick={() =>
+              onComplete({
+                weeklyGoal: 3,
+                sessionMin: 30,
+                level: 'beginner',
+                primaryGoal: 'consistency',
+                focusPriority: 'full-body',
+                jointCare: 'none',
+                availableGearIds: [...gearPresetIds['full-gym']],
+                onboarded: true,
+                locale,
+              })
+            }
             className="w-full py-2 text-center text-[14px] font-medium text-[var(--ink-soft)] active:text-[var(--black)]"
           >
-            {t('useDefaults')}
+            {t('startIn60s')}
           </button>
         </div>
       </div>

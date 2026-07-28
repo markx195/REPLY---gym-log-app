@@ -18,24 +18,22 @@ export default function TermsPage() {
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">1. Beta product</h2>
       <p>
         REPLY is an early product. Features may change, break, or be removed
-        without notice. Sign-in options (Google, Apple, Facebook, email) are
-        <strong> local demo sessions</strong> stored only on your device — they
-        are not linked to real OAuth accounts yet.
+        without notice. Sign-in options (Google and email magic link) use
+        Supabase Auth during this beta. Guest mode remains local on your device.
       </p>
 
-      <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">2. Local-only data</h2>
+      <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">2. Data storage and sync</h2>
       <p>
-        Workout history, preferences, and favorites are saved in your browser
-        (localStorage). Clearing site data, switching browsers, or using another
-        device will not sync your progress. We do not currently operate a cloud
-        account system.
+        REPLY stores workout data locally in your browser and, for signed-in
+        users, syncs preferences, history, custom lists, and favorites to our
+        Supabase backend. Guest sessions stay local-only. Clearing browser data
+        can remove local copies.
       </p>
 
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">3. Acceptable use</h2>
       <p>
         Use REPLY for personal fitness planning and logging. Do not abuse the
-        service, attempt to disrupt it, or misrepresent that demo sign-in is a
-        verified identity provider login.
+        service, attempt to disrupt it, or misrepresent account identity.
       </p>
 
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">4. Health &amp; safety</h2>
@@ -55,8 +53,8 @@ export default function TermsPage() {
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">6. Disclaimer of warranty</h2>
       <p>
         The app is provided “as is” without warranties of any kind. We are not
-        liable for lost local data, training outcomes, injuries, or downtime
-        during the beta.
+        liable for lost data, training outcomes, injuries, or downtime during
+        the beta.
       </p>
 
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">7. Contact</h2>

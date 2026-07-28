@@ -11,25 +11,25 @@ export default function PrivacyPage() {
     <LegalShell title="Privacy Policy">
       <p>
         This Policy explains what REPLY collects during the invite / soft-launch
-        beta. Short version: <strong>almost everything stays on your device</strong>.
+        beta. Short version: data is stored locally and can sync to Supabase
+        when you sign in.
       </p>
 
-      <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">1. What we store on your device</h2>
+      <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">1. What data REPLY stores</h2>
       <ul className="list-disc space-y-2 pl-5">
-        <li>Demo profile (name / email you typed, or guest mode)</li>
+        <li>Profile info from sign-in provider (or guest profile)</li>
         <li>Preferences (gear, language, goals, theme)</li>
-        <li>Workout history and favorites</li>
+        <li>Workout history, favorites, and custom workout lists</li>
       </ul>
       <p>
-        These use browser localStorage. We do not sync them to a REPLY server
-        today.
+        Guest mode stores data in browser localStorage only. Signed-in mode also
+        syncs to Supabase (Auth + Postgres) to support multi-device access.
       </p>
 
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">2. What we do not collect (yet)</h2>
       <p>
         We do not run a production analytics, crash-reporting, or advertising
-        SDK in this beta. Demo “Continue with Google / Apple / Facebook” does
-        <strong> not</strong> send credentials to those providers.
+        SDK in this beta.
       </p>
 
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">3. Third-party content</h2>
@@ -49,8 +49,9 @@ export default function PrivacyPage() {
 
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">5. Your choices</h2>
       <p>
-        Sign out and clear site data in your browser to remove local REPLY data.
-        You can also clear history from Profile inside the app.
+        You can sign out, clear site data in your browser to remove local REPLY
+        data, and clear history from Profile inside the app. To request account
+        data deletion in Supabase-backed mode, contact the REPLY team.
       </p>
 
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">6. Children</h2>
@@ -61,9 +62,8 @@ export default function PrivacyPage() {
 
       <h2 className="text-[17px] font-semibold text-[var(--black,#111)]">7. Changes</h2>
       <p>
-        We will update this Policy when we add real accounts, cloud sync, or
-        analytics. Continued use after changes means you accept the updated
-        Policy.
+        We will update this Policy as infrastructure and beta scope evolve.
+        Continued use after changes means you accept the updated Policy.
       </p>
     </LegalShell>
   );
