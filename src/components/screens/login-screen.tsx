@@ -66,7 +66,7 @@ export function LoginScreen({
     ? 'Use a real inbox (Gmail, etc.). Check spam for the magic link.'
     : 'No password — creates a local demo profile only.';
   const disclaimer = cloudEnabled
-    ? 'Sign in with Google or email magic link to sync history to the cloud. Guest stays on this device only.'
+    ? 'Sign in with Google / Apple / Facebook or email magic link to sync history to the cloud. Guest stays on this device only.'
     : 'Demo auth only — Google / Apple / Facebook / email create a local profile on this device. Nothing syncs to a real account yet. Clearing site data deletes progress.';
 
   const submitEmail = async () => {
@@ -181,6 +181,26 @@ export function LoginScreen({
               >
                 <GoogleIcon />
                 {busy === 'google' ? 'Starting…' : 'Continue with Google'}
+              </button>
+
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => void submitSocial('apple')}
+                className="flex h-[var(--control-h)] w-full items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-[var(--black)] text-[16px] font-medium text-white shadow-[var(--shadow-md)] transition-all active:scale-[0.98] disabled:opacity-40"
+              >
+                <AppleIcon />
+                {busy === 'apple' ? 'Starting…' : 'Continue with Apple'}
+              </button>
+
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => void submitSocial('facebook')}
+                className="flex h-[var(--control-h)] w-full items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-[#1877F2] text-[16px] font-medium text-white shadow-[var(--shadow-md)] transition-all active:scale-[0.98] disabled:opacity-40"
+              >
+                <FacebookIcon />
+                {busy === 'facebook' ? 'Starting…' : 'Continue with Facebook'}
               </button>
 
               <div className="flex items-center gap-4 py-1">

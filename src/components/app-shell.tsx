@@ -139,20 +139,39 @@ export function AppShell() {
     if (!supabase) return null;
 
     return await new Promise<AuthUser | null>((resolve) => {
-      const timeoutId = window.setTimeout(() => {
+      let resolved = false;
+      const finish = (next: AuthUser | null) => {
+        if (resolved) return;
+        resolved = true;
+        window.clearTimeout(timeoutId);
+        window.clearInterval(pollId);
         subscription.unsubscribe();
-        resolve(null);
+        resolve(next);
+      };
+
+      const checkCurrentSession = async () => {
+        const current = await getSupabaseSessionUser();
+        if (current) finish(current);
+      };
+
+      const timeoutId = window.setTimeout(() => {
+        finish(null);
       }, timeoutMs);
+
+      // Poll cached session in case auth event already fired before subscription.
+      const pollId = window.setInterval(() => {
+        void checkCurrentSession();
+      }, 350);
 
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange((event, session) => {
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-          window.clearTimeout(timeoutId);
-          subscription.unsubscribe();
-          resolve(authUserFromSupabase(session.user));
+          finish(authUserFromSupabase(session.user));
         }
       });
+
+      void checkCurrentSession();
     });
   }, []);
 
