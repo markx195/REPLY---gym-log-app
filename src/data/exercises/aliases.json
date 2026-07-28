@@ -1,0 +1,11 @@
+{
+  "bench": "Barbell_Bench_Press_-_Medium_Grip",
+  "incline-db": "Incline_Dumbbell_Press",
+  "cable-fly": "Cable_Crossover",
+  "overhead-ext": "Standing_Dumbbell_Triceps_Extension",
+  "chest-press": "Leverage_Chest_Press",
+  "lat-pulldown": "Wide-Grip_Lat_Pulldown",
+  "leg-press": "Leg_Press",
+  "squat": "Barbell_Full_Squat",
+  "ohp": "Standing_Military_Press"
+}
