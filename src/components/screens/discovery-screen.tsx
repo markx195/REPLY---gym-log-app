@@ -13,6 +13,10 @@ import {
 } from '@/data/exercises/catalog';
 import { moods, toneStyles, workouts, type WorkoutMood } from '@/data/workouts';
 import {
+  createCustomWorkout,
+  type CustomWorkout,
+} from '@/lib/custom-workouts-store';
+import {
   formatGearSummary,
   type UserPreferences,
 } from '@/lib/preferences-store';
@@ -20,9 +24,12 @@ import { muscleLabel, translate } from '@/lib/i18n';
 
 type DiscoveryScreenProps = {
   onStartWorkout: (workoutId: string) => void;
+  onStartExercise: (exerciseId: string) => void;
   favoriteIds: string[];
   onToggleFavorite: (workoutId: string) => void;
   preferences: UserPreferences;
+  customWorkouts: CustomWorkout[];
+  onSaveCustomWorkout: (list: CustomWorkout) => void;
   onEditGear?: () => void;
 };
 
@@ -30,9 +37,12 @@ const PAGE = 20;
 
 export function DiscoveryScreen({
   onStartWorkout,
+  onStartExercise,
   favoriteIds,
   onToggleFavorite,
   preferences,
+  customWorkouts,
+  onSaveCustomWorkout,
   onEditGear,
 }: DiscoveryScreenProps) {
   const locale = preferences.locale;
@@ -46,6 +56,7 @@ export function DiscoveryScreen({
   const [onlyMyGear, setOnlyMyGear] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE);
   const [selected, setSelected] = useState<CatalogExercise | null>(null);
+  const [pickerExercise, setPickerExercise] = useState<CatalogExercise | null>(null);
   const librarySentinelRef = useRef<HTMLDivElement | null>(null);
 
   const stats = catalogStats();
@@ -99,6 +110,21 @@ export function DiscoveryScreen({
     observer.observe(node);
     return () => observer.disconnect();
   }, [exerciseResult.total]);
+
+  const quickStartFromExercise = (exercise: CatalogExercise) => {
+    setSelected(null);
+    setPickerExercise(null);
+    onStartExercise(exercise.id);
+  };
+
+  const addExerciseToList = (list: CustomWorkout, exerciseId: string) => {
+    if (list.exerciseIds.includes(exerciseId)) return;
+    onSaveCustomWorkout({
+      ...list,
+      exerciseIds: [...list.exerciseIds, exerciseId],
+      updatedAt: Date.now(),
+    });
+  };
 
   return (
     <div className="relative space-y-6 fade-in">
@@ -345,7 +371,7 @@ export function DiscoveryScreen({
             className={cn(
               'rounded-full px-3.5 py-2 text-[13px] font-semibold',
               !equipment
-                ? 'bg-[var(--surface)] text-[var(--black)] ring-1 ring-[var(--border)]'
+                ? 'bg-[var(--accent)] text-white'
                 : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
             )}
           >
@@ -468,9 +494,80 @@ export function DiscoveryScreen({
                 </ol>
               </div>
             ) : null}
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="lg" onClick={() => quickStartFromExercise(selected)}>
+                {locale === 'vi' ? 'Tập nhanh' : 'Quick start'}
+              </Button>
+              <Button variant="secondary" size="lg" onClick={() => setPickerExercise(selected)}>
+                {locale === 'vi' ? 'Thêm vào list' : 'Add to list'}
+              </Button>
+            </div>
             <Button fullWidth size="lg" onClick={() => setSelected(null)}>
               {t('close')}
             </Button>
+          </div>
+        ) : null}
+      </BottomSheet>
+
+      <BottomSheet
+        open={Boolean(pickerExercise)}
+        onClose={() => setPickerExercise(null)}
+        title={locale === 'vi' ? 'Thêm vào list của bạn' : 'Add to your list'}
+      >
+        {pickerExercise ? (
+          <div className="space-y-3">
+            <Button
+              fullWidth
+              size="lg"
+              onClick={() => {
+                const list = createCustomWorkout({
+                  title: pickerExercise.name,
+                  exerciseIds: [pickerExercise.id],
+                  targetSets: 3,
+                  targetReps: 10,
+                });
+                onSaveCustomWorkout(list);
+                setPickerExercise(null);
+              }}
+            >
+              {locale === 'vi' ? 'Tạo list mới từ bài này' : 'Create new list from this exercise'}
+            </Button>
+
+            {customWorkouts.length === 0 ? (
+              <p className="text-[13px] text-[var(--muted)]">
+                {locale === 'vi'
+                  ? 'Bạn chưa có list tùy chỉnh nào.'
+                  : 'You do not have any custom list yet.'}
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {customWorkouts.map((list) => {
+                  const exists = list.exerciseIds.includes(pickerExercise.id);
+                  return (
+                    <li key={list.id} className="rounded-[14px] bg-[var(--surface)] px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-[14px] font-semibold text-[var(--black)]">
+                            {list.title}
+                          </p>
+                          <p className="text-[12px] text-[var(--muted)]">
+                            {list.exerciseIds.length} {locale === 'vi' ? 'bài' : 'exercises'}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={exists ? 'secondary' : 'primary'}
+                          disabled={exists}
+                          onClick={() => addExerciseToList(list, pickerExercise.id)}
+                        >
+                          {exists ? (locale === 'vi' ? 'Đã có' : 'Added') : (locale === 'vi' ? 'Thêm' : 'Add')}
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         ) : null}
       </BottomSheet>

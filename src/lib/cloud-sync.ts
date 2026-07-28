@@ -21,9 +21,14 @@ export async function pullCloudSnapshot(): Promise<CloudSnapshot | null> {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) return null;
 
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) return null;
-  const user = authUserFromSupabase(userData.user);
+  const sessionRes = await supabase.auth.getSession();
+  let sourceUser = sessionRes.data.session?.user ?? null;
+  if (!sourceUser) {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) return null;
+    sourceUser = userData.user;
+  }
+  const user = authUserFromSupabase(sourceUser);
 
   const [prefsRes, historyRes, customsRes, favoritesRes] = await Promise.all([
     supabase.from('user_preferences').select('data').eq('user_id', user.id).maybeSingle(),

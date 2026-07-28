@@ -169,6 +169,44 @@ export function AppShell() {
     return waitForSupabaseSignIn();
   }, [waitForSupabaseSignIn]);
 
+  const pullLatestFromCloud = useCallback(async () => {
+    if (!cloudEnabled || !user || user.mode === 'guest') return;
+    const snap = await pullCloudSnapshot();
+    if (!snap) return;
+
+    const localPrefs = prefs ?? loadPreferences();
+    let localFavorites = favoriteIds;
+    try {
+      const raw = window.localStorage.getItem(FAVORITES_KEY);
+      if (raw) localFavorites = JSON.parse(raw) as string[];
+    } catch {
+      // ignore
+    }
+
+    const merged = mergeLocalWithCloud({
+      localPrefs,
+      cloudPrefs: snap.preferences,
+      localHistory: history,
+      cloudHistory: snap.history,
+      localCustoms: customWorkouts,
+      cloudCustoms: snap.customWorkouts,
+      localFavorites,
+      cloudFavorites: snap.favorites,
+    });
+    savePreferences(merged.preferences);
+    saveHistory(merged.history);
+    saveCustomWorkouts(merged.customWorkouts);
+    try {
+      window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(merged.favorites));
+    } catch {
+      // ignore
+    }
+    setPrefs(merged.preferences);
+    setHistory(merged.history);
+    setCustomWorkouts(merged.customWorkouts);
+    setFavoriteIds(merged.favorites);
+  }, [cloudEnabled, customWorkouts, favoriteIds, history, prefs, user]);
+
   // Apply theme to document
   useEffect(() => {
     if (!prefs) return;
@@ -313,6 +351,36 @@ export function AppShell() {
   }, [cloudEnabled, getCloudUserWithRetry]);
 
   useEffect(() => {
+    if (!cloudEnabled) return;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        const cloudUser = authUserFromSupabase(session.user);
+        saveAuthUser(cloudUser);
+        setUser(cloudUser);
+        setEmailHint(null);
+        setGate((current) => {
+          if (current !== 'auth') return current;
+          return loadPreferences().onboarded ? 'ready' : 'onboarding';
+        });
+      }
+
+      if (event === 'SIGNED_OUT') {
+        clearAuthUser();
+        setUser(null);
+        setEmailHint(null);
+        setGate('auth');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [cloudEnabled]);
+
+  useEffect(() => {
     if (gate !== 'ready') return;
 
     const maybeFire = () => {
@@ -339,6 +407,26 @@ export function AppShell() {
       window.clearInterval(id);
     };
   }, [gate, prefs?.locale]);
+
+  useEffect(() => {
+    if (gate !== 'ready') return;
+    if (!cloudEnabled || !user || user.mode === 'guest') return;
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void pullLatestFromCloud();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    const id = window.setInterval(() => {
+      void pullLatestFromCloud();
+    }, 90_000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(id);
+    };
+  }, [cloudEnabled, gate, pullLatestFromCloud, user]);
 
   const weeklyStats = useMemo(
     () => computeWeeklyStats(history, prefs?.weeklyGoal ?? 4),
@@ -562,6 +650,35 @@ export function AppShell() {
     } finally {
       setSyncBusy(false);
     }
+  };
+
+  const startExerciseNow = (exerciseId: string) => {
+    clearWorkoutDraft();
+    setDraft(null);
+    const transientList: CustomWorkout = {
+      id: `quick_${exerciseId}`,
+      title: prefs?.locale === 'vi' ? 'Buổi tập nhanh' : 'Quick workout',
+      exerciseIds: [exerciseId],
+      targetSets: 3,
+      targetReps: 10,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const session = buildCustomSession(
+      transientList,
+      (id) =>
+        getLastExercisePerformance(history, id, {
+          goal: prefs?.primaryGoal,
+          level: prefs?.level,
+          locale: prefs?.locale,
+        }),
+      {
+        defaultRestSeconds: prefs?.defaultRestSeconds,
+        unit: prefs?.units,
+      },
+    );
+    if (session.exercises.length === 0) return;
+    setView({ type: 'workout', session });
   };
 
   const startWorkout = (workoutId: string) => {
@@ -880,9 +997,12 @@ export function AppShell() {
         {view.tab === 'discovery' ? (
           <DiscoveryScreen
             onStartWorkout={startWorkout}
+            onStartExercise={startExerciseNow}
             favoriteIds={favoriteIds}
             onToggleFavorite={toggleFavorite}
             preferences={prefs!}
+            customWorkouts={customWorkouts}
+            onSaveCustomWorkout={saveCustomList}
             onEditGear={() => setView({ type: 'tabs', tab: 'profile' })}
           />
         ) : null}
