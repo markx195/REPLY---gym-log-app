@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BottomSheet, Button, SearchBar } from '@/components/ui';
 import { searchExercises, getExerciseById } from '@/data/exercises/catalog';
 import { cn } from '@/lib/cn';
@@ -9,6 +9,8 @@ import {
   type CustomWorkout,
 } from '@/lib/custom-workouts-store';
 import { translate, type Locale } from '@/lib/i18n';
+
+const PAGE_SIZE = 24;
 
 type CustomListBuilderProps = {
   open: boolean;
@@ -31,20 +33,35 @@ export function CustomListBuilder({
   const [title, setTitle] = useState('');
   const [query, setQuery] = useState('');
   const [exerciseIds, setExerciseIds] = useState<string[]>([]);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [error, setError] = useState<string | null>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setTitle(initial?.title ?? '');
     setQuery('');
     setExerciseIds(initial?.exerciseIds ?? []);
+    setVisibleCount(PAGE_SIZE);
     setError(null);
   }, [open, initial]);
 
-  const results = useMemo(
-    () => searchExercises(query, { limit: 12 }).items,
-    [query],
+  const result = useMemo(
+    () => searchExercises(query, { limit: visibleCount }),
+    [query, visibleCount],
   );
+
+  const results = useMemo(
+    () => result.items,
+    [result],
+  );
+
+  const loadMore = () => {
+    setVisibleCount((current) => {
+      if (current >= result.total) return current;
+      return Math.min(current + PAGE_SIZE, result.total);
+    });
+  };
 
   const selected = exerciseIds
     .map((id) => getExerciseById(id))
@@ -128,11 +145,23 @@ export function CustomListBuilder({
 
         <SearchBar
           value={query}
-          onChange={setQuery}
+          onChange={(value) => {
+            setQuery(value);
+            setVisibleCount(PAGE_SIZE);
+          }}
           placeholder={t('searchExercises')}
         />
 
-        <ul className="max-h-56 space-y-1.5 overflow-y-auto">
+        <ul
+          ref={listRef}
+          onScroll={(event) => {
+            if (visibleCount >= result.total) return;
+            const node = event.currentTarget;
+            const nearBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 80;
+            if (nearBottom) loadMore();
+          }}
+          className="max-h-[42dvh] space-y-1.5 overflow-y-auto"
+        >
           {results.map((item) => {
             const on = exerciseIds.includes(item.id);
             return (
@@ -174,6 +203,12 @@ export function CustomListBuilder({
             );
           })}
         </ul>
+
+        {visibleCount < result.total ? (
+          <p className="text-center text-[12px] font-medium text-[var(--muted-light)]">
+            {locale === 'vi' ? 'Kéo xuống để tải thêm bài tập…' : 'Scroll down to load more exercises…'}
+          </p>
+        ) : null}
 
         {error ? (
           <p className="text-[13px] font-medium text-red-500">{error}</p>

@@ -87,12 +87,14 @@ import {
   upsertProfile,
 } from '@/lib/cloud-sync';
 import {
+  authUserFromSupabase,
   getSupabaseSessionUser,
   isSupabaseConfigured,
   signInWithEmailMagicLink,
   signInWithOAuthProvider,
   signOutSupabase,
 } from '@/lib/supabase/auth';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { AppTab } from '@/types/navigation';
 
 type AppView =
@@ -132,6 +134,28 @@ export function AppShell() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const cloudEnabled = isSupabaseConfigured();
 
+  const waitForSupabaseSignIn = useCallback(async (timeoutMs = 8000) => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return null;
+
+    return await new Promise<AuthUser | null>((resolve) => {
+      const timeoutId = window.setTimeout(() => {
+        subscription.unsubscribe();
+        resolve(null);
+      }, timeoutMs);
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((event, session) => {
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+          window.clearTimeout(timeoutId);
+          subscription.unsubscribe();
+          resolve(authUserFromSupabase(session.user));
+        }
+      });
+    });
+  }, []);
+
   const getCloudUserWithRetry = useCallback(async () => {
     const url = new URL(window.location.href);
     const justReturnedFromAuth = url.searchParams.get('auth') === '1';
@@ -142,8 +166,8 @@ export function AppShell() {
       const current = await getSupabaseSessionUser();
       if (current) return current;
     }
-    return null;
-  }, []);
+    return waitForSupabaseSignIn();
+  }, [waitForSupabaseSignIn]);
 
   // Apply theme to document
   useEffect(() => {

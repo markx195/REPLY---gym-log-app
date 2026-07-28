@@ -24,9 +24,16 @@ export default function AuthCallbackPage() {
       try {
         const url = new URL(window.location.href);
         const code = url.searchParams.get('code');
+        let exchanged = false;
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
+          if (error) {
+            // Some browsers/flows may have already consumed URL tokens via detectSessionInUrl.
+            // Do not fail hard here; we still verify actual session readiness below.
+            console.warn('exchangeCodeForSession warning', error.message);
+          } else {
+            exchanged = true;
+          }
         } else {
           // Hash/token flows: let client parse the URL.
           await supabase.auth.getSession();
@@ -42,7 +49,13 @@ export default function AuthCallbackPage() {
             break;
           }
         }
-        if (!sessionReady) throw new Error('Session not ready after OAuth callback');
+        if (!sessionReady) {
+          throw new Error(
+            exchanged
+              ? 'Session not ready after OAuth exchange'
+              : 'Session not ready after OAuth callback',
+          );
+        }
         if (!cancelled) router.replace('/?auth=1');
       } catch (error) {
         if (!cancelled) {

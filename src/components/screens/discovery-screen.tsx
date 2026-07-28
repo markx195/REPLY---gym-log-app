@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
-import { BottomSheet, Button, Card, SearchBar, WorkoutCard } from '@/components/ui';
+import { BottomSheet, Button, Card, SearchBar } from '@/components/ui';
 import { HScroll } from '@/components/ui/h-scroll';
 import {
   catalogStats,
@@ -46,6 +46,7 @@ export function DiscoveryScreen({
   const [onlyMyGear, setOnlyMyGear] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE);
   const [selected, setSelected] = useState<CatalogExercise | null>(null);
+  const librarySentinelRef = useRef<HTMLDivElement | null>(null);
 
   const stats = catalogStats();
 
@@ -79,6 +80,25 @@ export function DiscoveryScreen({
     { id: 'travel', title: locale === 'vi' ? 'Đi du lịch' : 'Travel ready', count: 3, tone: 'mist' as const },
     { id: 'pump', title: locale === 'vi' ? 'Pump 45 phút' : '45-min pump', count: 5, tone: 'sky' as const },
   ];
+
+  useEffect(() => {
+    const node = librarySentinelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (!first?.isIntersecting) return;
+        setVisibleCount((current) => {
+          if (current >= exerciseResult.total) return current;
+          return Math.min(current + PAGE, exerciseResult.total);
+        });
+      },
+      { rootMargin: '220px 0px 220px 0px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [exerciseResult.total]);
 
   return (
     <div className="relative space-y-6 fade-in">
@@ -124,7 +144,7 @@ export function DiscoveryScreen({
               className={cn(
                 'shrink-0 rounded-full px-4 py-2.5 text-[var(--text-sm)] font-medium transition-all',
                 isActive
-                  ? 'bg-[var(--black)] text-white shadow-[var(--shadow-sm)]'
+                  ? 'bg-[var(--accent)] text-white shadow-[var(--shadow-sm)]'
                   : 'bg-[var(--white)] text-[var(--muted)] shadow-[var(--shadow-sm)]',
               )}
             >
@@ -185,29 +205,44 @@ export function DiscoveryScreen({
             <p className="text-[var(--text-md)] text-[var(--muted)]">{t('nothingHere')}</p>
           </Card>
         ) : (
-          <ul className="space-y-2.5">
+          <HScroll>
             {filtered.map((workout) => {
               const saved = favoriteIds.includes(workout.id);
               return (
-                <li key={workout.id} className="space-y-1.5">
-                  <WorkoutCard
-                    workout={workout}
-                    onStart={() => onStartWorkout(workout.id)}
-                  />
+                <div key={workout.id} className="w-[190px] shrink-0 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => onStartWorkout(workout.id)}
+                    className={cn(
+                      'relative h-[120px] w-full overflow-hidden rounded-[var(--radius-xl)] p-4 text-left shadow-[var(--shadow-md)] active:scale-[0.98]',
+                      'bg-gradient-to-br',
+                      toneStyles[workout.tone].wash,
+                    )}
+                  >
+                    <p className="text-[16px] font-semibold leading-snug text-[var(--black)]">
+                      {workout.title}
+                    </p>
+                    <p className="mt-1 text-[12px] font-medium text-[var(--muted)]">
+                      {workout.durationMin} min · {workout.focus}
+                    </p>
+                    <span className="absolute bottom-3 right-3 rounded-full bg-white/75 px-2.5 py-1 text-[11px] font-semibold text-[var(--black)]">
+                      {locale === 'vi' ? 'Bắt đầu' : 'Start'}
+                    </span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => onToggleFavorite(workout.id)}
                     className={cn(
-                      'ml-1 text-[13px] font-semibold',
+                      'ml-1 text-[12px] font-semibold',
                       saved ? 'text-[var(--accent)]' : 'text-[var(--muted)]',
                     )}
                   >
                     {saved ? `★ ${t('saved')}` : `☆ ${t('save')}`}
                   </button>
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </HScroll>
         )}
       </section>
 
@@ -274,7 +309,7 @@ export function DiscoveryScreen({
             className={cn(
               'rounded-full px-3.5 py-2 text-[13px] font-semibold',
               !muscle
-                ? 'bg-[var(--black)] text-white'
+                ? 'bg-[var(--accent)] text-white'
                 : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
             )}
           >
@@ -291,7 +326,7 @@ export function DiscoveryScreen({
               className={cn(
                 'rounded-full px-3.5 py-2 text-[13px] font-semibold',
                 muscle === item
-                  ? 'bg-[var(--black)] text-white'
+                  ? 'bg-[var(--accent)] text-white'
                   : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
               )}
             >
@@ -327,7 +362,7 @@ export function DiscoveryScreen({
               className={cn(
                 'rounded-full px-3.5 py-2 text-[13px] font-semibold capitalize',
                 equipment === item
-                  ? 'bg-[var(--black)] text-white'
+                  ? 'bg-[var(--accent)] text-white'
                   : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
               )}
             >
@@ -375,14 +410,12 @@ export function DiscoveryScreen({
         </ul>
 
         {visibleCount < exerciseResult.total ? (
-          <Button
-            variant="secondary"
-            fullWidth
-            size="lg"
-            onClick={() => setVisibleCount((count) => count + PAGE)}
+          <div
+            ref={librarySentinelRef}
+            className="py-2 text-center text-[12px] font-medium text-[var(--muted-light)]"
           >
-            {t('showMore')} ({Math.min(PAGE, exerciseResult.total - visibleCount)})
-          </Button>
+            {locale === 'vi' ? 'Kéo xuống để tải thêm…' : 'Scroll to load more…'}
+          </div>
         ) : null}
       </section>
 

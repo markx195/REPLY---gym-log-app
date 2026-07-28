@@ -30,6 +30,13 @@ export function authUserFromSupabase(user: User): AuthUser {
 export async function getSupabaseSessionUser(): Promise<AuthUser | null> {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) return null;
+  // Prefer local session first (faster and less flaky right after OAuth redirect).
+  const sessionRes = await supabase.auth.getSession();
+  if (sessionRes.data.session?.user) {
+    return authUserFromSupabase(sessionRes.data.session.user);
+  }
+
+  // Fallback to authoritative network user when no local session is found.
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
   return authUserFromSupabase(data.user);
