@@ -105,7 +105,7 @@ type Gate = 'booting' | 'auth' | 'onboarding' | 'entering' | 'ready';
 
 const FAVORITES_KEY = 'reply.favorites';
 const ENTER_MIN_MS = 900;
-const AUTH_RETURN_RETRY_DELAYS_MS = [0, 250, 700, 1400];
+const AUTH_RETURN_RETRY_DELAYS_MS = [0, 250, 700, 1400, 2400];
 
 function resolveTheme(pref: UserPreferences['theme']): 'light' | 'dark' {
   if (pref === 'light' || pref === 'dark') return pref;
