@@ -105,6 +105,7 @@ type Gate = 'booting' | 'auth' | 'onboarding' | 'entering' | 'ready';
 
 const FAVORITES_KEY = 'reply.favorites';
 const ENTER_MIN_MS = 900;
+const AUTH_RETURN_RETRY_DELAYS_MS = [0, 250, 700, 1400];
 
 function resolveTheme(pref: UserPreferences['theme']): 'light' | 'dark' {
   if (pref === 'light' || pref === 'dark') return pref;
@@ -130,6 +131,19 @@ export function AppShell() {
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const cloudEnabled = isSupabaseConfigured();
+
+  const getCloudUserWithRetry = useCallback(async () => {
+    const url = new URL(window.location.href);
+    const justReturnedFromAuth = url.searchParams.get('auth') === '1';
+    if (!justReturnedFromAuth) return getSupabaseSessionUser();
+
+    for (const delayMs of AUTH_RETURN_RETRY_DELAYS_MS) {
+      if (delayMs > 0) await delay(delayMs);
+      const current = await getSupabaseSessionUser();
+      if (current) return current;
+    }
+    return null;
+  }, []);
 
   // Apply theme to document
   useEffect(() => {
@@ -170,7 +184,7 @@ export function AppShell() {
         const nextReminder = loadReminderSettings();
 
         if (cloudEnabled) {
-          const cloudUser = await getSupabaseSessionUser();
+          const cloudUser = await getCloudUserWithRetry();
           if (cancelled) return;
           if (cloudUser) {
             nextUser = cloudUser;
@@ -272,7 +286,7 @@ export function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [cloudEnabled]);
+  }, [cloudEnabled, getCloudUserWithRetry]);
 
   useEffect(() => {
     if (gate !== 'ready') return;
