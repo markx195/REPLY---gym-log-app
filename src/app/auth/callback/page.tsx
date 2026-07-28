@@ -50,10 +50,12 @@ export default function AuthCallbackPage() {
           }
         }
         if (!sessionReady) {
-          throw new Error(
+          // Do not hard-fail here. Some browsers can persist session slightly later.
+          // AppShell already has retry + auth-state listeners to recover after redirect.
+          console.warn(
             exchanged
-              ? 'Session not ready after OAuth exchange'
-              : 'Session not ready after OAuth callback',
+              ? 'Session not ready after OAuth exchange, continuing to app shell'
+              : 'Session not ready after OAuth callback, continuing to app shell',
           );
         }
         if (!cancelled) router.replace('/?auth=1');
