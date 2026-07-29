@@ -6,6 +6,7 @@ import { BottomSheet, Button, Card, SearchBar } from '@/components/ui';
 import { HScroll } from '@/components/ui/h-scroll';
 import {
   catalogStats,
+  categoryFilters,
   equipmentFilters,
   searchExercises,
   type CatalogExercise,
@@ -55,6 +56,7 @@ export function DiscoveryScreen({
   const [activeMood, setActiveMood] = useState<WorkoutMood>('All');
   const [muscle, setMuscle] = useState<string | null>(null);
   const [equipment, setEquipment] = useState<string | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
   const [onlyMyGear, setOnlyMyGear] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE);
   const [selected, setSelected] = useState<CatalogExercise | null>(null);
@@ -86,11 +88,12 @@ export function DiscoveryScreen({
       searchExercises(query, {
         muscle: muscle ?? undefined,
         equipment: equipment ?? undefined,
+        category: category ?? undefined,
         availableGearIds: onlyMyGear ? preferences.availableGearIds : undefined,
         limit: visibleCount,
         offset: 0,
       }),
-    [query, muscle, equipment, onlyMyGear, preferences.availableGearIds, visibleCount],
+    [query, muscle, equipment, category, onlyMyGear, preferences.availableGearIds, visibleCount],
   );
 
   const collections = [
@@ -323,6 +326,45 @@ export function DiscoveryScreen({
 
       <section className="space-y-3">
         <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
+          {locale === 'vi' ? 'Thể loại' : 'Categories'}
+        </h2>
+        <div className="grid grid-cols-2 gap-2">
+          {categoryFilters.map((cat) => {
+            const active = category === cat.id;
+            const count = searchExercises('', { category: cat.id }).total;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  setCategory(active ? null : cat.id);
+                  setVisibleCount(PAGE);
+                  if (!active) setLibraryOpen(true);
+                }}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-[18px] px-3.5 py-3 text-left transition-all active:scale-[0.97]',
+                  active
+                    ? 'bg-[var(--accent)] shadow-[var(--shadow-md)]'
+                    : 'bg-[var(--white)] shadow-[var(--shadow-sm)]',
+                )}
+              >
+                <span className="text-[20px]">{cat.icon}</span>
+                <div className="min-w-0 flex-1">
+                  <p className={cn('text-[14px] font-semibold leading-tight', active ? 'text-white' : 'text-[var(--black)]')}>
+                    {locale === 'vi' ? cat.vi : cat.en}
+                  </p>
+                  <p className={cn('text-[11px] font-medium', active ? 'text-white/70' : 'text-[var(--muted)]')}>
+                    {count} {locale === 'vi' ? 'bài' : 'exercises'}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
           {t('collections')}
         </h2>
         <HScroll>
@@ -471,6 +513,7 @@ export function DiscoveryScreen({
             <p className="mt-1 text-[12px] font-semibold text-[var(--accent)]">
               {exerciseResult.total} · {muscle ? muscleLabel(muscle, locale) : t('allMuscles')}
               {equipment ? ` · ${equipment}` : ''}
+              {category ? ` · ${categoryFilters.find((c) => c.id === category)?.[locale === 'vi' ? 'vi' : 'en'] ?? category}` : ''}
             </p>
           </div>
           <span className="text-[18px] font-semibold text-[var(--muted)]">›</span>
@@ -587,6 +630,15 @@ export function DiscoveryScreen({
           >
             {equipment ?? t('anyType')} ▾
           </button>
+          {category ? (
+            <button
+              type="button"
+              onClick={() => { setCategory(null); setVisibleCount(PAGE); }}
+              className="rounded-full bg-[var(--accent)] px-3.5 py-2 text-[13px] font-semibold text-white"
+            >
+              {categoryFilters.find((c) => c.id === category)?.[locale === 'vi' ? 'vi' : 'en'] ?? category} ✕
+            </button>
+          ) : null}
         </div>
 
         <p className="mb-3 text-[12px] font-medium text-[var(--ink-soft)]">
@@ -626,6 +678,12 @@ export function DiscoveryScreen({
                       .join(', ')}{' '}
                     · {exercise.equipment}
                   </p>
+                  <span className="mt-1 inline-flex rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-semibold capitalize text-[var(--accent)]">
+                    {categoryFilters.find((c) => c.id === exercise.category)?.icon ?? ''}{' '}
+                    {locale === 'vi'
+                      ? (categoryFilters.find((c) => c.id === exercise.category)?.vi ?? exercise.category)
+                      : (categoryFilters.find((c) => c.id === exercise.category)?.en ?? exercise.category)}
+                  </span>
                 </div>
                 <span className="shrink-0 text-[12px] font-semibold text-[var(--accent)]">
                   {t('view')}
@@ -666,6 +724,12 @@ export function DiscoveryScreen({
               </span>
               <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[12px] font-semibold capitalize text-[var(--black)]">
                 {selected.equipment}
+              </span>
+              <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[12px] font-semibold capitalize text-[var(--black)]">
+                {categoryFilters.find((c) => c.id === selected.category)?.icon ?? ''}{' '}
+                {locale === 'vi'
+                  ? (categoryFilters.find((c) => c.id === selected.category)?.vi ?? selected.category)
+                  : (categoryFilters.find((c) => c.id === selected.category)?.en ?? selected.category)}
               </span>
             </div>
             <div>

@@ -368,6 +368,13 @@ export const muscleLabels: Record<string, { en: string; vi: string }> = {
   biceps: { en: 'Biceps', vi: 'Tay trước' },
   triceps: { en: 'Triceps', vi: 'Tay sau' },
   abdominals: { en: 'Abs', vi: 'Bụng' },
+  calves: { en: 'Calves', vi: 'Bắp chân' },
+  'lower back': { en: 'Lower back', vi: 'Lưng dưới' },
+  forearms: { en: 'Forearms', vi: 'Cẳng tay' },
+  traps: { en: 'Traps', vi: 'Cơ thang' },
+  adductors: { en: 'Adductors', vi: 'Khép háng' },
+  abductors: { en: 'Abductors', vi: 'Dạng háng' },
+  neck: { en: 'Neck', vi: 'Cổ' },
 };
 
 export function muscleLabel(muscle: string, locale: Locale) {

@@ -12,6 +12,13 @@ const MUSCLE_COVER_IDS: Record<(typeof muscleFilters)[number], string> = {
   biceps: 'EZ-Bar_Curl',
   triceps: 'Triceps_Pushdown',
   abdominals: 'Cable_Crunch',
+  calves: 'Standing_Calf_Raises',
+  'lower back': 'Hyperextensions_Back_Extensions_',
+  forearms: 'Palms-Up_Barbell_Wrist_Curl_Over_A_Bench',
+  traps: 'Barbell_Shrug',
+  adductors: 'Thigh_Adductor',
+  abductors: 'Thigh_Abductor',
+  neck: 'Neck_Press',
 };
 
 export function muscleCoverImage(muscle: string): string | null {

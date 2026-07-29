@@ -42,6 +42,13 @@ export const muscleFilters = [
   'biceps',
   'triceps',
   'abdominals',
+  'calves',
+  'lower back',
+  'forearms',
+  'traps',
+  'adductors',
+  'abductors',
+  'neck',
 ] as const;
 
 export const equipmentFilters = [
@@ -53,6 +60,31 @@ export const equipmentFilters = [
   'kettlebells',
   'bands',
 ] as const;
+
+export type ExerciseCategory =
+  | 'strength'
+  | 'powerlifting'
+  | 'olympic weightlifting'
+  | 'strongman'
+  | 'cardio'
+  | 'hiit'
+  | 'stretching'
+  | 'warmup'
+  | 'cooldown'
+  | 'calisthenics';
+
+export const categoryFilters: { id: ExerciseCategory; icon: string; en: string; vi: string }[] = [
+  { id: 'strength', icon: '🏋️', en: 'Strength', vi: 'Sức mạnh' },
+  { id: 'cardio', icon: '🏃', en: 'Cardio', vi: 'Cardio' },
+  { id: 'hiit', icon: '⚡', en: 'HIIT', vi: 'HIIT' },
+  { id: 'stretching', icon: '🧘', en: 'Stretching', vi: 'Giãn cơ' },
+  { id: 'warmup', icon: '🔥', en: 'Warm-up', vi: 'Khởi động' },
+  { id: 'cooldown', icon: '❄️', en: 'Cool-down', vi: 'Thả lỏng' },
+  { id: 'calisthenics', icon: '🤸', en: 'Calisthenics', vi: 'Calisthenics' },
+  { id: 'powerlifting', icon: '🏆', en: 'Powerlifting', vi: 'Powerlifting' },
+  { id: 'olympic weightlifting', icon: '🥇', en: 'Olympic', vi: 'Cử tạ Olympic' },
+  { id: 'strongman', icon: '💪', en: 'Strongman', vi: 'Strongman' },
+];
 
 export function getExerciseById(id: string): CatalogExercise | undefined {
   return byId.get(id) ?? byId.get(exerciseAliases[id] ?? '');
@@ -70,6 +102,7 @@ export function searchExercises(
   opts?: {
     muscle?: string;
     equipment?: string;
+    category?: string;
     availableGearIds?: string[];
     level?: ExerciseLevel;
     force?: Exclude<ExerciseForce, null>;
@@ -85,6 +118,7 @@ export function searchExercises(
   for (const exercise of exerciseCatalog) {
     if (opts?.muscle && !matchesMuscle(exercise, opts.muscle)) continue;
     if (opts?.equipment && exercise.equipment !== opts.equipment) continue;
+    if (opts?.category && exercise.category !== opts.category) continue;
     if (
       opts?.availableGearIds &&
       !exerciseMatchesAnyGear(exercise, opts.availableGearIds)
@@ -97,7 +131,8 @@ export function searchExercises(
       q &&
       !exercise.name.toLowerCase().includes(q) &&
       !exercise.primaryMuscles.some((m) => m.includes(q)) &&
-      !exercise.equipment.toLowerCase().includes(q)
+      !exercise.equipment.toLowerCase().includes(q) &&
+      !exercise.category.toLowerCase().includes(q)
     ) {
       continue;
     }
