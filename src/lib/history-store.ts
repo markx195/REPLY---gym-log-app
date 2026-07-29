@@ -238,10 +238,13 @@ export type ProgressInsights = {
   lastWeekVolume: number;
   volumeDeltaPct: number | null;
   dayVolumes: DayVolume[];
+  /** Oldest → newest, last 4 calendar weeks (Mon–Sun). */
+  weekTrend: Array<{ label: string; volume: number; sessions: number }>;
   personalRecords: PersonalRecord[];
   bestSession: HistorySession | null;
   muscleVolume: Array<{ muscle: string; volume: number }>;
   sessionsThisWeek: number;
+  avgSessionMin: number;
 };
 
 export function computeProgressInsights(sessions: HistorySession[]): ProgressInsights {
@@ -284,6 +287,31 @@ export function computeProgressInsights(sessions: HistorySession[]): ProgressIns
       : weekVolume > 0
         ? 100
         : null;
+
+  const weekTrend = Array.from({ length: 4 }, (_, index) => {
+    const offset = 3 - index; // oldest first
+    const start = new Date(monday);
+    start.setDate(monday.getDate() - offset * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    const inWeek = sessions.filter((session) => {
+      const time = new Date(`${session.date}T12:00:00`).getTime();
+      return time >= start.getTime() && time < end.getTime();
+    });
+    const label =
+      offset === 0
+        ? 'Now'
+        : offset === 1
+          ? '-1w'
+          : offset === 2
+            ? '-2w'
+            : '-3w';
+    return {
+      label,
+      volume: inWeek.reduce((sum, s) => sum + s.volume, 0),
+      sessions: inWeek.length,
+    };
+  });
 
   const prMap = new Map<string, PersonalRecord>();
   for (const session of sessions) {
@@ -336,6 +364,13 @@ export function computeProgressInsights(sessions: HistorySession[]): ProgressIns
           session.volume > best.volume ? session : best,
         );
 
+  const avgSessionMin =
+    sessions.length === 0
+      ? 0
+      : Math.round(
+          sessions.reduce((sum, s) => sum + s.durationMin, 0) / sessions.length,
+        );
+
   return {
     totalVolume: sessions.reduce((sum, session) => sum + session.volume, 0),
     totalSessions: sessions.length,
@@ -343,9 +378,11 @@ export function computeProgressInsights(sessions: HistorySession[]): ProgressIns
     lastWeekVolume,
     volumeDeltaPct,
     dayVolumes,
+    weekTrend,
     personalRecords,
     bestSession,
     muscleVolume,
     sessionsThisWeek,
+    avgSessionMin,
   };
 }

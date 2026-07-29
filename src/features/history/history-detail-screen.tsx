@@ -9,9 +9,11 @@ import {
   type HistorySet,
 } from '@/data/history';
 import { cn } from '@/lib/cn';
+import { translate, type Locale } from '@/lib/i18n';
 
 type HistoryDetailScreenProps = {
   session: HistorySession;
+  locale: Locale;
   onBack: () => void;
   onSave: (session: HistorySession) => void;
   onDelete: (sessionId: string) => void;
@@ -26,10 +28,14 @@ type EditTarget = {
 
 export function HistoryDetailScreen({
   session: initial,
+  locale,
   onBack,
   onSave,
   onDelete,
 }: HistoryDetailScreenProps) {
+  const t = (key: string, vars?: Record<string, string | number>) =>
+    translate(locale, key, vars);
+
   const [draft, setDraft] = useState(initial);
   const [editing, setEditing] = useState(false);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
@@ -71,7 +77,7 @@ export function HistoryDetailScreen({
     setDraft(updated);
     onSave(updated);
     setEditTarget(null);
-    setToast('Set updated');
+    setToast(t('setUpdatedToast'));
   };
 
   const deleteSet = (exerciseIndex: number, setIndex: number) => {
@@ -86,7 +92,7 @@ export function HistoryDetailScreen({
     setDraft(updated);
     onSave(updated);
     setEditTarget(null);
-    setToast('Set removed');
+    setToast(t('setRemovedToast'));
   };
 
   const addSet = (exerciseIndex: number) => {
@@ -101,7 +107,7 @@ export function HistoryDetailScreen({
     const updated = withRecalculatedVolume(next);
     setDraft(updated);
     onSave(updated);
-    setToast('Set added');
+    setToast(t('setAddedToast'));
   };
 
   const bumpDuration = (delta: number) => {
@@ -138,7 +144,7 @@ export function HistoryDetailScreen({
           type="button"
           onClick={onBack}
           className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)] active:scale-95"
-          aria-label="Back"
+          aria-label={t('back')}
         >
           ←
         </button>
@@ -158,7 +164,7 @@ export function HistoryDetailScreen({
               : 'bg-[var(--white)] text-[var(--accent)]',
           )}
         >
-          {editing ? 'Done' : 'Edit'}
+          {editing ? t('done') : t('edit')}
         </button>
       </header>
 
@@ -167,7 +173,7 @@ export function HistoryDetailScreen({
       >
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-[16px] bg-white/70 px-3 py-3 backdrop-blur-sm">
-            <p className="text-[11px] font-medium text-[var(--muted)]">Time</p>
+            <p className="text-[11px] font-medium text-[var(--muted)]">{t('time')}</p>
             <p className="mt-1 text-[20px] font-semibold tabular-nums text-[var(--black)]">
               {draft.durationMin}m
             </p>
@@ -191,13 +197,13 @@ export function HistoryDetailScreen({
             ) : null}
           </div>
           <div className="rounded-[16px] bg-white/70 px-3 py-3 backdrop-blur-sm">
-            <p className="text-[11px] font-medium text-[var(--muted)]">Sets</p>
+            <p className="text-[11px] font-medium text-[var(--muted)]">{t('sets')}</p>
             <p className="mt-1 text-[20px] font-semibold tabular-nums text-[var(--black)]">
               {totalSets}
             </p>
           </div>
           <div className="rounded-[16px] bg-white/70 px-3 py-3 backdrop-blur-sm">
-            <p className="text-[11px] font-medium text-[var(--muted)]">Volume</p>
+            <p className="text-[11px] font-medium text-[var(--muted)]">{t('volume')}</p>
             <p className="mt-1 text-[20px] font-semibold tabular-nums text-[var(--black)]">
               {formatVolume(draft.volume)}
             </p>
@@ -205,22 +211,28 @@ export function HistoryDetailScreen({
         </div>
         {heaviest ? (
           <p className="mt-4 text-[13px] font-medium text-[var(--black)]/70">
-            Top set · {heaviest.name} {heaviest.weight}×{heaviest.reps}
+            {t('topSet', {
+              name: heaviest.name,
+              weight: heaviest.weight,
+              reps: heaviest.reps,
+            })}
           </p>
         ) : null}
       </div>
 
       {editing ? (
         <p className="rounded-[var(--radius-lg)] bg-[var(--accent-mist)] px-4 py-3 text-[13px] font-medium text-[var(--accent)]">
-          Tap a set to edit · + to add · trash to delete session
+          {t('editingHint')}
         </p>
       ) : null}
 
       <section className="space-y-3">
-        <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">Exercises</h2>
+        <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
+          {t('exercises')}
+        </h2>
         {draft.exercises.length === 0 ? (
           <Card variant="surface" padding="md" className="py-8 text-center">
-            <p className="text-[14px] text-[var(--muted)]">No sets left in this session.</p>
+            <p className="text-[14px] text-[var(--muted)]">{t('noSetsLeft')}</p>
           </Card>
         ) : (
           <ul className="space-y-2.5">
@@ -240,7 +252,7 @@ export function HistoryDetailScreen({
                         onClick={() => addSet(exerciseIndex)}
                         className="rounded-full bg-[var(--surface)] px-2.5 py-1 text-[12px] font-semibold text-[var(--accent)]"
                       >
-                        + Set
+                        + {t('set')}
                       </button>
                     ) : null}
                   </div>
@@ -271,7 +283,7 @@ export function HistoryDetailScreen({
 
       <div className="space-y-2">
         <Button variant="secondary" fullWidth size="lg" onClick={onBack}>
-          Back to progress
+          {t('backToProgress')}
         </Button>
         {editing ? (
           <Button
@@ -281,7 +293,7 @@ export function HistoryDetailScreen({
             className="text-red-500"
             onClick={() => setConfirmDelete(true)}
           >
-            Delete session
+            {t('deleteSession')}
           </Button>
         ) : null}
       </div>
@@ -289,12 +301,12 @@ export function HistoryDetailScreen({
       <BottomSheet
         open={Boolean(editTarget)}
         onClose={() => setEditTarget(null)}
-        title="Edit set"
+        title={t('editSetTitle')}
       >
         {editTarget ? (
           <div className="space-y-5">
             <InputNumber
-              label="Weight"
+              label={t('weightLabel')}
               value={editTarget.weight}
               onChange={(weight) => setEditTarget({ ...editTarget, weight })}
               step={2.5}
@@ -304,7 +316,7 @@ export function HistoryDetailScreen({
               allowDecimal
             />
             <InputNumber
-              label="Reps"
+              label={t('repsLabel')}
               value={editTarget.reps}
               onChange={(reps) => setEditTarget({ ...editTarget, reps })}
               step={1}
@@ -313,7 +325,7 @@ export function HistoryDetailScreen({
               allowDecimal={false}
             />
             <Button fullWidth size="lg" onClick={saveSetEdit}>
-              Save set
+              {t('saveSet')}
             </Button>
             <Button
               variant="secondary"
@@ -321,7 +333,7 @@ export function HistoryDetailScreen({
               size="lg"
               onClick={() => deleteSet(editTarget.exerciseIndex, editTarget.setIndex)}
             >
-              Delete set
+              {t('deleteSet')}
             </Button>
           </div>
         ) : null}
@@ -330,11 +342,11 @@ export function HistoryDetailScreen({
       <BottomSheet
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
-        title="Delete session?"
+        title={t('deleteSessionTitle')}
       >
         <div className="space-y-4">
           <p className="text-[15px] text-[var(--muted)]">
-            This removes “{draft.title}” from your history on this device.
+            {t('confirmDeleteBody', { title: draft.title })}
           </p>
           <Button
             fullWidth
@@ -344,7 +356,7 @@ export function HistoryDetailScreen({
               setConfirmDelete(false);
             }}
           >
-            Delete
+            {t('delete')}
           </Button>
           <Button
             variant="secondary"
@@ -352,7 +364,7 @@ export function HistoryDetailScreen({
             size="lg"
             onClick={() => setConfirmDelete(false)}
           >
-            Cancel
+            {t('cancel')}
           </Button>
         </div>
       </BottomSheet>

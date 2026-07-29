@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LoadingScreen } from '@/components/screens/loading-screen';
+import { LoadingScreen } from '@/features/common/loading-screen';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 const SESSION_READY_RETRY_DELAYS_MS = [0, 200, 500, 1000, 1800];

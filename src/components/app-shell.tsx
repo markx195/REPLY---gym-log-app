@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BottomSheet, Button, TabBar } from '@/components/ui';
-import { ActiveWorkoutScreen } from '@/components/screens/active-workout-screen';
-import { DiscoveryScreen } from '@/components/screens/discovery-screen';
-import { HistoryDetailScreen } from '@/components/screens/history-detail-screen';
-import { HomeScreen } from '@/components/screens/home-screen';
-import { LoadingScreen } from '@/components/screens/loading-screen';
-import { LoginScreen } from '@/components/screens/login-screen';
-import { OnboardingScreen } from '@/components/screens/onboarding-screen';
-import { ProfileScreen } from '@/components/screens/profile-screen';
-import { WorkoutDoneScreen } from '@/components/screens/workout-done-screen';
+import { ActiveWorkoutScreen } from '@/features/workout/active-workout-screen';
+import { DiscoveryScreen } from '@/features/discovery/discovery-screen';
+import { HistoryDetailScreen } from '@/features/history/history-detail-screen';
+import { HomeScreen } from '@/features/home/home-screen';
+import { LoadingScreen } from '@/features/common/loading-screen';
+import { LoginScreen } from '@/features/auth/login-screen';
+import { OnboardingScreen } from '@/features/onboarding/onboarding-screen';
+import { ProfileScreen } from '@/features/profile/profile-screen';
+import { WorkoutDoneScreen } from '@/features/workout/workout-done-screen';
 import type { HistorySession } from '@/data/history';
 import { createSession, type WorkoutSession } from '@/data/session';
 import {
@@ -946,6 +946,7 @@ export function AppShell() {
         <ActiveWorkoutScreen
           session={view.session}
           availableGearIds={prefs?.availableGearIds}
+          locale={prefs?.locale ?? 'en'}
           onCancel={() => {
             setDraft(loadWorkoutDraft());
             setView({ type: 'tabs', tab: 'home' });
@@ -978,6 +979,7 @@ export function AppShell() {
           {session ? (
             <HistoryDetailScreen
               session={session}
+              locale={prefs?.locale ?? 'en'}
               onBack={() => setView({ type: 'tabs', tab: 'profile' })}
               onSave={saveHistorySession}
               onDelete={removeHistorySession}
@@ -1048,6 +1050,7 @@ export function AppShell() {
             syncBusy={syncBusy}
             syncMessage={syncMessage}
             onSyncNow={syncNow}
+            onGoTrain={() => setView({ type: 'tabs', tab: 'home' })}
           />
         ) : null}
       </main>

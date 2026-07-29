@@ -15,11 +15,13 @@ import {
   type WorkoutSession,
 } from '@/data/session';
 import { cn } from '@/lib/cn';
+import { translate, type Locale } from '@/lib/i18n';
 import { clearWorkoutDraft, saveWorkoutDraft } from '@/lib/workout-draft-store';
 
 type ActiveWorkoutScreenProps = {
   session: WorkoutSession;
   availableGearIds?: string[];
+  locale: Locale;
   onFinish: (session: WorkoutSession, durationMs: number) => void;
   onCancel: () => void;
 };
@@ -48,9 +50,13 @@ function jumpToExercise(
 export function ActiveWorkoutScreen({
   session: initialSession,
   availableGearIds,
+  locale,
   onFinish,
   onCancel,
 }: ActiveWorkoutScreenProps) {
+  const t = (key: string, vars?: Record<string, string | number>) =>
+    translate(locale, key, vars);
+
   const [session, setSession] = useState(initialSession);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [resting, setResting] = useState(false);
@@ -176,7 +182,7 @@ export function ActiveWorkoutScreen({
       });
       return { ...current, exercises };
     });
-    setToast('Undid last set');
+    setToast(t('toastUndidLastSet'));
   }, [exercise.sets.length, exerciseIndex, resting]);
 
   const endRest = useCallback(() => setResting(false), []);
@@ -234,7 +240,7 @@ export function ActiveWorkoutScreen({
       setReps,
       setResting,
     );
-    setToast('Back to previous');
+    setToast(t('toastBackToPrevious'));
   };
 
   const skipForLater = () => {
@@ -259,7 +265,7 @@ export function ActiveWorkoutScreen({
     setExerciseIndex(nextIdx);
     setWeight(nextExercise.suggestedWeight);
     setReps(nextExercise.targetReps);
-    setToast('Saved for later');
+    setToast(t('toastSavedForLater'));
   };
 
   const selectFromQueue = (index: number) => {
@@ -272,8 +278,8 @@ export function ActiveWorkoutScreen({
       setResting,
     );
     setQueueOpen(false);
-    if (index > exerciseIndex) setToast('Jumped ahead');
-    if (index < exerciseIndex) setToast('Came back');
+    if (index > exerciseIndex) setToast(t('toastJumpedAhead'));
+    if (index < exerciseIndex) setToast(t('toastCameBack'));
   };
 
   const swapExercise = (altId: string) => {
@@ -289,7 +295,7 @@ export function ActiveWorkoutScreen({
     setWeight(updated.suggestedWeight);
     setReps(updated.targetReps);
     setSwapOpen(false);
-    setToast(`Swapped → ${updated.name}`);
+    setToast(t('swappedToast', { name: updated.name }));
   };
 
   return (
@@ -314,7 +320,7 @@ export function ActiveWorkoutScreen({
         <button
           type="button"
           onClick={onCancel}
-          aria-label="Close workout"
+          aria-label={t('closeWorkout')}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-md)] active:scale-95"
         >
           <CloseIcon />
@@ -329,7 +335,7 @@ export function ActiveWorkoutScreen({
           onClick={() => { clearWorkoutDraft(); onFinish(session, Date.now() - session.startedAt); }}
           className="rounded-full px-3 py-2 text-[15px] font-semibold text-[var(--accent)] active:opacity-70"
         >
-          Done
+          {t('done')}
         </button>
       </header>
 
@@ -361,14 +367,17 @@ export function ActiveWorkoutScreen({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-[var(--accent)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white">
-                  Set {currentSet}/{exercise.targetSets}
+                  {t('setProgress', {
+                    current: currentSet,
+                    target: exercise.targetSets,
+                  })}
                 </span>
                 <button
                   type="button"
                   onClick={() => setQueueOpen(true)}
                   className="text-[12px] font-semibold text-[var(--ink-soft)]"
                 >
-                  {exerciseIndex + 1}/{session.exercises.length} · Queue
+                  {exerciseIndex + 1}/{session.exercises.length} · {t('queue')}
                 </button>
               </div>
               <h1 className="mt-2 line-clamp-2 text-[24px] font-semibold leading-[1.1] tracking-[var(--tracking-snug)] text-[var(--black)]">
@@ -405,7 +414,7 @@ export function ActiveWorkoutScreen({
               onClick={() => setQueueOpen(true)}
               className="rounded-full bg-[var(--surface)] px-3.5 py-2 text-[13px] font-semibold text-[var(--black)]"
             >
-              Queue
+              {t('queue')}
             </button>
             {swaps.length > 0 ? (
               <button
@@ -413,7 +422,7 @@ export function ActiveWorkoutScreen({
                 onClick={() => setSwapOpen(true)}
                 className="rounded-full bg-[var(--accent)] px-3.5 py-2 text-[13px] font-semibold text-white"
               >
-                Swap
+                {t('swap')}
               </button>
             ) : null}
             <div className="flex-1" />
@@ -423,7 +432,7 @@ export function ActiveWorkoutScreen({
               onClick={goBack}
               className="rounded-full px-3 py-2 text-[13px] font-semibold text-[var(--ink-soft)] disabled:opacity-30"
             >
-              ← Prev
+              ← {t('prev')}
             </button>
           </div>
         </section>
@@ -438,7 +447,7 @@ export function ActiveWorkoutScreen({
             }}
             className="shrink-0 rounded-full bg-[var(--accent)] px-3.5 py-2 text-[13px] font-semibold text-white active:scale-95"
           >
-            Last {exercise.lastWeight}×{exercise.lastReps}
+            {t('lastSet', { weight: exercise.lastWeight, reps: exercise.lastReps })}
           </button>
           {exercise.previousSets.slice(0, 3).map((set, index) => (
             <button
@@ -466,7 +475,7 @@ export function ActiveWorkoutScreen({
             <div className="relative mb-4 flex items-end justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
-                  Set {currentSet} · live
+                  {t('setLive', { set: currentSet })}
                 </p>
                 <p className="mt-1 flex items-baseline gap-1 tabular-nums">
                   <span className="text-[40px] font-semibold leading-none tracking-[-0.05em] text-[var(--black)]">
@@ -491,10 +500,10 @@ export function ActiveWorkoutScreen({
                   )}
                 >
                   {delta > 0
-                    ? `+${delta} ${exercise.unit} vs last`
+                    ? `+${delta} ${exercise.unit} ${t('vsLast')}`
                     : delta < 0
-                      ? `${delta} ${exercise.unit} vs last`
-                      : 'Match last · or push'}
+                      ? `${delta} ${exercise.unit} ${t('vsLast')}`
+                      : t('matchLastOrPush')}
                 </p>
               </div>
 
@@ -530,7 +539,7 @@ export function ActiveWorkoutScreen({
               <div className="rounded-[22px] bg-[var(--white)] p-3 shadow-[var(--shadow-sm)]">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                    Weight
+                    {t('weight')}
                   </p>
                   <span className="text-[11px] font-semibold text-[var(--ink-soft)]">
                     {exercise.unit}
@@ -545,7 +554,7 @@ export function ActiveWorkoutScreen({
                       )
                     }
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--surface)] text-[22px] font-semibold text-[var(--black)] active:scale-95"
-                    aria-label="Decrease weight"
+                    aria-label={t('decreaseWeight')}
                   >
                     −
                   </button>
@@ -560,7 +569,7 @@ export function ActiveWorkoutScreen({
                     }}
                     onFocus={(e) => e.target.select()}
                     className="w-full min-w-0 bg-transparent text-center text-[28px] font-semibold tracking-[-0.04em] text-[var(--black)] outline-none tabular-nums"
-                    aria-label="Weight"
+                    aria-label={t('weight')}
                   />
                   <button
                     type="button"
@@ -568,7 +577,7 @@ export function ActiveWorkoutScreen({
                       setWeight(Number((weight + exercise.weightStep).toFixed(2)))
                     }
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[22px] font-semibold text-white active:scale-95"
-                    aria-label="Increase weight"
+                    aria-label={t('increaseWeight')}
                   >
                     +
                   </button>
@@ -594,14 +603,14 @@ export function ActiveWorkoutScreen({
 
               <div className="rounded-[22px] bg-[var(--white)] p-3 shadow-[var(--shadow-sm)]">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                  Reps
+                  {t('reps')}
                 </p>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => setReps(Math.max(1, reps - 1))}
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--surface)] text-[22px] font-semibold text-[var(--black)] active:scale-95"
-                    aria-label="Decrease reps"
+                    aria-label={t('decreaseReps')}
                   >
                     −
                   </button>
@@ -615,13 +624,13 @@ export function ActiveWorkoutScreen({
                     }}
                     onFocus={(e) => e.target.select()}
                     className="w-full min-w-0 bg-transparent text-center text-[28px] font-semibold tracking-[-0.04em] text-[var(--black)] outline-none tabular-nums"
-                    aria-label="Reps"
+                    aria-label={t('reps')}
                   />
                   <button
                     type="button"
                     onClick={() => setReps(Math.min(50, reps + 1))}
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[22px] font-semibold text-white active:scale-95"
-                    aria-label="Increase reps"
+                    aria-label={t('increaseReps')}
                   >
                     +
                   </button>
@@ -663,7 +672,7 @@ export function ActiveWorkoutScreen({
                     : 'bg-[var(--white)] text-[var(--ink-soft)]',
                 )}
               >
-                Warmup
+                {t('warmup')}
               </button>
               <button
                 type="button"
@@ -675,7 +684,7 @@ export function ActiveWorkoutScreen({
                     : 'bg-[var(--white)] text-[var(--ink-soft)]',
                 )}
               >
-                RPE / Note
+                {t('rpeNote')}
               </button>
               <button
                 type="button"
@@ -683,7 +692,7 @@ export function ActiveWorkoutScreen({
                 disabled={exercise.sets.length === 0 && !resting}
                 className="ml-auto rounded-full bg-[var(--white)] px-3 py-1.5 text-[12px] font-semibold text-[var(--danger)] disabled:opacity-40 active:scale-95"
               >
-                Undo
+                {t('undo')}
               </button>
             </div>
 
@@ -712,7 +721,7 @@ export function ActiveWorkoutScreen({
                 <input
                   value={note}
                   onChange={(event) => setNote(event.target.value.slice(0, 80))}
-                  placeholder="Set note (optional)"
+                  placeholder={t('noteOptionalPlaceholder')}
                   className="h-10 w-full rounded-[var(--radius-md)] bg-[var(--surface)] px-3 text-[13px] text-[var(--black)] outline-none"
                 />
               </div>
@@ -740,7 +749,7 @@ export function ActiveWorkoutScreen({
                   justLogged && 'scale-[0.98]',
                 )}
               >
-                Log set {currentSet}
+                {t('logSet', { set: currentSet })}
               </Button>
               <button
                 type="button"
@@ -748,20 +757,20 @@ export function ActiveWorkoutScreen({
                 onClick={skipForLater}
                 className="w-full py-2 text-center text-[14px] font-semibold text-[var(--ink-soft)] disabled:opacity-30"
               >
-                Skip for later
+                {t('skipForLater')}
               </button>
             </>
           ) : null}
 
           {!resting && setComplete ? (
             <Button size="lg" fullWidth className="h-[56px] text-[17px] font-semibold" onClick={goNextExercise}>
-              {workoutComplete ? 'Finish strong' : 'Next exercise'}
+              {workoutComplete ? t('finishStrong') : t('nextExercise')}
             </Button>
           ) : null}
         </div>
       </main>
 
-      <BottomSheet open={queueOpen} onClose={() => setQueueOpen(false)} title="Session queue">
+      <BottomSheet open={queueOpen} onClose={() => setQueueOpen(false)} title={t('sessionQueue')}>
         <ul className="space-y-2">
           {session.exercises.map((item, index) => {
             const done = isExerciseDone(item);
@@ -794,8 +803,14 @@ export function ActiveWorkoutScreen({
                       {item.name}
                     </p>
                     <p className="text-[12px] font-medium text-[var(--ink-soft)]">
-                      {item.sets.length}/{item.targetSets} sets
-                      {current ? ' · now' : later ? ' · later' : done ? ' · done' : ''}
+                      {item.sets.length}/{item.targetSets} {t('sets')}
+                      {current
+                        ? t('nowSuffix')
+                        : later
+                          ? t('laterSuffix')
+                          : done
+                            ? ` · ${t('done')}`
+                            : ''}
                     </p>
                   </div>
                 </button>
@@ -805,9 +820,9 @@ export function ActiveWorkoutScreen({
         </ul>
       </BottomSheet>
 
-      <BottomSheet open={swapOpen} onClose={() => setSwapOpen(false)} title="Swap exercise">
+      <BottomSheet open={swapOpen} onClose={() => setSwapOpen(false)} title={t('swapExerciseTitle')}>
         <p className="mb-4 text-[14px] font-medium text-[var(--ink-soft)]">
-          Same pattern, different tool — progression stays intact.
+          {t('swapSheetBody')}
         </p>
         <ul className="space-y-2">
           {swaps.map((alt) => (
@@ -827,20 +842,22 @@ export function ActiveWorkoutScreen({
                   />
                 ) : (
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-[var(--white)] text-[12px] font-semibold text-[var(--muted)]">
-                    ALT
+                    {t('alt')}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-semibold text-[var(--black)]">{alt.name}</p>
                   <p className="mt-0.5 text-[12px] font-medium text-[var(--ink-soft)]">{alt.reason}</p>
                 </div>
-                <span className="shrink-0 text-[13px] font-semibold text-[var(--accent)]">Use</span>
+                <span className="shrink-0 text-[13px] font-semibold text-[var(--accent)]">
+                  {t('useAlt')}
+                </span>
               </button>
             </li>
           ))}
           {swaps.length === 0 ? (
             <li className="rounded-[var(--radius-lg)] bg-[var(--surface)] px-4 py-6 text-center text-[14px] text-[var(--muted)]">
-              No close alternatives found.
+              {t('noCloseAlternatives')}
             </li>
           ) : null}
         </ul>

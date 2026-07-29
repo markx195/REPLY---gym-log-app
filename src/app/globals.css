@@ -57,8 +57,8 @@
   --surface: #262626;
   --border: rgba(255, 255, 255, 0.08);
   --accent: #3b9aff;
-  --accent-soft: rgba(59, 154, 255, 0.15);
-  --accent-mist: #1e2d3d;
+  --accent-soft: rgba(59, 154, 255, 0.12);
+  --accent-mist: rgba(59, 154, 255, 0.16);
   --accent-bright: #7eb6ff;
   --ink-soft: #dce3ea;
   --panel-ink: #121820;

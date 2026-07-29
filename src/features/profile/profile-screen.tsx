@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useRef, useState } from 'react';
-import { BottomSheet, Button, Card, InputNumber, ProgressRing } from '@/components/ui';
+import { BottomSheet, Button, Card, InputNumber } from '@/components/ui';
 import { GearPicker } from '@/components/ui/gear-picker';
 import type { HistorySession } from '@/data/history';
 import { formatVolume } from '@/data/history';
@@ -59,6 +59,7 @@ type ProfileScreenProps = {
   syncBusy?: boolean;
   syncMessage?: string | null;
   onSyncNow?: () => void | Promise<void>;
+  onGoTrain?: () => void;
 };
 
 export function ProfileScreen({
@@ -82,21 +83,38 @@ export function ProfileScreen({
   syncBusy = false,
   syncMessage = null,
   onSyncNow,
+  onGoTrain,
 }: ProfileScreenProps) {
   const locale = preferences.locale;
+  const isVi = locale === 'vi';
+  const l = (viText: string, enText: string) => (isVi ? viText : enText);
   const t = (key: string, vars?: Record<string, string | number>) =>
     translate(locale, key, vars);
 
   const insights = useMemo(() => computeProgressInsights(history), [history]);
   const maxDayVolume = Math.max(...insights.dayVolumes.map((day) => day.volume), 1);
+  const maxWeekTrend = Math.max(...insights.weekTrend.map((w) => w.volume), 1);
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const volumeDeltaLabel =
+    insights.volumeDeltaPct === null
+      ? l('Tuần đầu theo dõi', 'First week tracking')
+      : insights.volumeDeltaPct === 0
+        ? l('Volume bằng tuần trước', 'Same volume as last week')
+        : insights.volumeDeltaPct > 0
+          ? `+${insights.volumeDeltaPct}%`
+          : `${insights.volumeDeltaPct}%`;
+
+  const weekLeft = Math.max(0, preferences.weeklyGoal - insights.sessionsThisWeek);
 
   const coachNotes = useMemo(() => {
     const notes: string[] = [];
     if (history.length < 2) {
       notes.push(
-        locale === 'vi'
-          ? 'Bắt đầu với 2-3 buổi/tuần. Sau 2 buổi, REPLY sẽ gợi ý tăng tạ/reps theo từng bài.'
-          : 'Start with 2-3 sessions/week. After 2 sessions, REPLY suggests weight/reps per exercise.',
+        l(
+          'Bắt đầu với 2-3 buổi/tuần. Sau 2 buổi, REPLY sẽ gợi ý tăng tạ/reps theo từng bài.',
+          'Start with 2-3 sessions/week. After 2 sessions, REPLY suggests weight/reps per exercise.',
+        ),
       );
     }
 
@@ -176,6 +194,7 @@ export function ProfileScreen({
   ]);
 
   const [settingsSheet, setSettingsSheet] = useState(false);
+  const [historySheet, setHistorySheet] = useState(false);
   const [goalSheet, setGoalSheet] = useState(false);
   const [goalDraft, setGoalDraft] = useState(preferences.weeklyGoal);
   const [equipSheet, setEquipSheet] = useState(false);
@@ -198,18 +217,18 @@ export function ProfileScreen({
 
   const initial = user.name.trim().charAt(0).toUpperCase() || 'R';
   const roleLabel = user.mode === 'guest'
-    ? (locale === 'vi' ? 'Khách' : 'Guest athlete')
+    ? l('Khách', 'Guest athlete')
     : cloudSyncEnabled
-      ? (locale === 'vi' ? 'Cloud · đã đăng nhập' : 'Cloud · signed in')
-      : (locale === 'vi' ? 'Vận động viên' : 'Athlete');
-  const emailLabel = user.email ?? (locale === 'vi' ? 'Phiên khách cục bộ' : 'Local guest session');
+      ? l('Cloud · đã đăng nhập', 'Cloud · signed in')
+      : l('Vận động viên', 'Athlete');
+  const emailLabel = user.email ?? l('Phiên khách cục bộ', 'Local guest session');
 
   const themeLabel =
     preferences.theme === 'dark'
-      ? (locale === 'vi' ? 'Tối' : 'Dark')
+      ? l('Tối', 'Dark')
       : preferences.theme === 'light'
-        ? (locale === 'vi' ? 'Sáng' : 'Light')
-        : (locale === 'vi' ? 'Hệ thống' : 'System');
+        ? l('Sáng', 'Light')
+        : l('Hệ thống', 'System');
 
   const cycleTheme = () => {
     const order: UserPreferences['theme'][] = ['system', 'light', 'dark'];
@@ -221,13 +240,13 @@ export function ProfileScreen({
     {
       id: 'language',
       label: t('language'),
-      value: locale === 'vi' ? 'Tiếng Việt' : 'English',
+      value: l('Tiếng Việt', 'English'),
       action: () => onUpdatePrefs({ locale: locale === 'en' ? 'vi' : 'en' }),
     },
     {
       id: 'goal',
       label: t('weeklyGoal'),
-      value: `${preferences.weeklyGoal} ${locale === 'vi' ? 'buổi' : 'sessions'}`,
+      value: `${preferences.weeklyGoal} ${l('buổi', 'sessions')}`,
       action: () => {
         setGoalDraft(preferences.weeklyGoal);
         setGoalSheet(true);
@@ -277,7 +296,7 @@ export function ProfileScreen({
     },
     {
       id: 'rest',
-      label: locale === 'vi' ? 'Rest mặc định' : 'Default rest',
+      label: l('Rest mặc định', 'Default rest'),
       value: `${preferences.defaultRestSeconds}s`,
       action: () =>
         onUpdatePrefs({
@@ -295,7 +314,7 @@ export function ProfileScreen({
     },
     {
       id: 'reminder',
-      label: locale === 'vi' ? 'Nhắc tập tuần' : 'Weekly reminder',
+      label: l('Nhắc tập tuần', 'Weekly reminder'),
       value: formatReminderSummary(reminder, locale),
       action: () => setReminderSheet(true),
     },
@@ -318,7 +337,7 @@ export function ProfileScreen({
             onClick={() => setSettingsSheet(true)}
             className="absolute right-4 top-4 rounded-full bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white backdrop-blur-sm"
           >
-            {locale === 'vi' ? 'Cài đặt' : 'Settings'}
+            {l('Cài đặt', 'Settings')}
           </button>
           <div className="flex items-center gap-4">
             <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[22px] bg-white/10 text-[28px] font-semibold backdrop-blur-sm">
@@ -332,55 +351,171 @@ export function ProfileScreen({
               <p className="mt-1 truncate text-[14px] text-white/60">{emailLabel}</p>
             </div>
           </div>
+
+          <div className="mt-5 flex justify-between gap-1">
+            {weeklyStats.weekDays.map((day, index) => (
+              <div key={`${day.label}-${index}`} className="flex flex-1 flex-col items-center gap-1.5">
+                <div
+                  className={cn(
+                    'h-2.5 w-2.5 rounded-full',
+                    day.done ? 'bg-[var(--accent)]' : 'bg-white/25',
+                  )}
+                />
+                <span className="text-[10px] font-semibold text-white/50">{day.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {weekLeft > 0 ? (
+            <button
+              type="button"
+              onClick={onGoTrain}
+              className="mt-5 w-full rounded-full bg-[var(--accent)] px-4 py-3 text-[14px] font-semibold text-white active:scale-[0.99]"
+            >
+              {isVi
+                ? `Còn ${weekLeft} buổi tuần này — tập ngay →`
+                : `${weekLeft} session${weekLeft === 1 ? '' : 's'} left this week — train →`}
+            </button>
+          ) : (
+            <p className="mt-5 text-center text-[13px] font-semibold text-white/70">
+              {isVi
+                ? 'Đã đủ mục tiêu tuần — giữ đà!'
+                : 'Weekly goal hit — keep the streak!'}
+            </p>
+          )}
         </section>
 
-        <section className="grid grid-cols-2 gap-3">
-          <Card className="space-y-2">
-            <p className="text-[12px] font-semibold text-[var(--ink-soft)]">{locale === 'vi' ? 'Tuần này' : 'This week'}</p>
-            <div className="flex items-center justify-between">
-              <ProgressRing
-                value={weeklyStats.sessionsDone}
-                max={Math.max(weeklyStats.sessionsGoal, 1)}
-                size={78}
-                strokeWidth={8}
-                label={`${weeklyStats.sessionsDone}`}
-                sublabel={`/ ${weeklyStats.sessionsGoal}`}
-              />
-              <div className="text-right">
-                <p className="text-[24px] font-semibold text-[var(--black)]">{weeklyStats.streak}</p>
-                <p className="text-[12px] text-[var(--ink-soft)]">{t('streak')}</p>
-              </div>
+        <section className="grid grid-cols-4 gap-2">
+          {[
+            {
+              label: 'Streak',
+              value: String(weeklyStats.streak),
+              hint: l('ngày', 'days'),
+            },
+            {
+              label: l('Tuần', 'Week'),
+              value: `${weeklyStats.sessionsDone}/${weeklyStats.sessionsGoal}`,
+              hint: l('buổi', 'sessions'),
+            },
+            {
+              label: 'Volume',
+              value: formatVolume(insights.weekVolume),
+              hint: volumeDeltaLabel,
+            },
+            {
+              label: l('TB buổi', 'Avg'),
+              value: insights.avgSessionMin ? `${insights.avgSessionMin}` : '—',
+              hint: t('min'),
+            },
+          ].map((stat) => (
+            <Card key={stat.label} padding="none" className="px-2 py-3 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                {stat.label}
+              </p>
+              <p className="mt-1 text-[16px] font-semibold tabular-nums text-[var(--black)]">
+                {stat.value}
+              </p>
+              <p className="mt-0.5 text-[10px] font-medium text-[var(--ink-soft)]">{stat.hint}</p>
+            </Card>
+          ))}
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
+              {l('Volume tuần này', 'Volume this week')}
+            </h2>
+            <span
+              className={cn(
+                'rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                insights.volumeDeltaPct !== null && insights.volumeDeltaPct > 0
+                  ? 'bg-[var(--accent-mist)] text-[var(--accent)]'
+                  : 'bg-[var(--surface)] text-[var(--ink-soft)]',
+              )}
+            >
+              {volumeDeltaLabel}
+              {insights.volumeDeltaPct !== null && insights.volumeDeltaPct !== 0
+                ? l(' vs tuần trước', ' vs last week')
+                : ''}
+            </span>
+          </div>
+          <Card>
+            <div className="flex h-36 items-end justify-between gap-2">
+              {insights.dayVolumes.map((day) => {
+                const ratio = day.volume / maxDayVolume;
+                const isToday = day.date === todayIso;
+                return (
+                  <div key={day.date} className="flex flex-1 flex-col items-center gap-1.5">
+                    <p className="text-[10px] font-semibold tabular-nums text-[var(--muted)]">
+                      {day.volume > 0 ? formatVolume(day.volume) : ''}
+                    </p>
+                    <div className="flex h-24 w-full items-end justify-center">
+                      <div
+                        className={cn(
+                          'w-full max-w-[30px] rounded-t-[10px] transition-all',
+                          day.volume > 0
+                            ? isToday
+                              ? 'bg-[var(--accent)]'
+                              : 'bg-[var(--accent)]/45'
+                            : 'bg-[var(--surface)]',
+                        )}
+                        style={{ height: `${Math.max(8, ratio * 100)}%` }}
+                      />
+                    </div>
+                    <span
+                      className={cn(
+                        'text-[11px] font-semibold',
+                        isToday ? 'text-[var(--accent)]' : 'text-[var(--ink-soft)]',
+                      )}
+                    >
+                      {day.label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          </Card>
-          <Card className="space-y-2">
-            <p className="text-[12px] font-semibold text-[var(--ink-soft)]">{locale === 'vi' ? 'Tổng quan' : 'Overview'}</p>
-            <p className="text-[24px] font-semibold text-[var(--black)]">{formatVolume(insights.totalVolume)}</p>
-            <p className="text-[12px] text-[var(--ink-soft)]">
-              {history.length} {locale === 'vi' ? 'buổi đã lưu' : 'saved sessions'}
-            </p>
-            <p className="text-[12px] text-[var(--ink-soft)]">
-              {weeklyStats.totalMinutes} {t('min')}
-            </p>
           </Card>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
-            {locale === 'vi' ? 'Biểu đồ tuần' : 'Weekly volume'}
+            {l('Xu hướng 4 tuần', '4-week trend')}
           </h2>
           <Card>
-            <div className="flex h-32 items-end justify-between gap-2">
-              {insights.dayVolumes.map((day) => {
-                const ratio = day.volume / maxDayVolume;
+            <div className="flex h-28 items-end gap-3">
+              {insights.weekTrend.map((week) => {
+                const ratio = week.volume / maxWeekTrend;
+                const isNow = week.label === 'Now';
                 return (
-                  <div key={day.date} className="flex flex-1 flex-col items-center gap-1">
-                    <div className="flex h-24 w-full items-end">
+                  <div key={week.label} className="flex flex-1 flex-col items-center gap-2">
+                    <p className="text-[11px] font-semibold tabular-nums text-[var(--muted)]">
+                      {week.sessions}
+                      {l('b', 's')}
+                    </p>
+                    <div className="flex h-16 w-full items-end justify-center">
                       <div
-                        className="w-full rounded-t-[8px] bg-[var(--accent)]/75"
-                        style={{ height: `${Math.max(6, ratio * 100)}%` }}
+                        className={cn(
+                          'w-full max-w-[40px] rounded-t-[12px]',
+                          week.volume > 0
+                            ? isNow
+                              ? 'bg-[var(--accent)]'
+                              : 'bg-[var(--accent)]/35'
+                            : 'bg-[var(--surface)]',
+                        )}
+                        style={{ height: `${Math.max(10, ratio * 100)}%` }}
+                        title={formatVolume(week.volume)}
                       />
                     </div>
-                    <span className="text-[11px] font-medium text-[var(--ink-soft)]">{day.label}</span>
+                    <span
+                      className={cn(
+                        'text-[11px] font-semibold',
+                        isNow ? 'text-[var(--accent)]' : 'text-[var(--ink-soft)]',
+                      )}
+                    >
+                      {week.label === 'Now'
+                        ? l('Tuần này', 'Now')
+                        : week.label}
+                    </span>
                   </div>
                 );
               })}
@@ -391,46 +526,71 @@ export function ProfileScreen({
         {insights.personalRecords.length > 0 ? (
           <section className="space-y-3">
             <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
-              {locale === 'vi' ? 'PR theo bài' : 'Exercise PRs'}
+              {l('Kỷ lục cá nhân', 'Personal records')}
             </h2>
-            <Card padding="none" className="overflow-hidden">
-              {insights.personalRecords.map((pr, index) => (
+            <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-1 hide-scrollbar">
+              {insights.personalRecords.map((pr) => (
                 <div
                   key={pr.exerciseId}
-                  className={cn(
-                    'flex items-center justify-between gap-3 px-4 py-3',
-                    index < insights.personalRecords.length - 1 && 'border-b border-[var(--border)]',
-                  )}
+                  className="w-[148px] shrink-0 overflow-hidden rounded-[var(--radius-xl)] bg-[var(--white)] p-4 shadow-[var(--shadow-md)]"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-[15px] font-semibold text-[var(--black)]">{pr.name}</p>
-                    <p className="text-[12px] text-[var(--ink-soft)]">{pr.dateLabel}</p>
-                  </div>
-                  <p className="shrink-0 text-[15px] font-semibold tabular-nums text-[var(--accent)]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
+                    PR
+                  </p>
+                  <p className="mt-2 line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--black)]">
+                    {pr.name}
+                  </p>
+                  <p className="mt-3 text-[26px] font-semibold tracking-[var(--tracking-snug)] tabular-nums text-[var(--black)]">
                     {pr.weight}
-                    {preferences.units}×{pr.reps}
+                    <span className="ml-1 text-[12px] font-medium text-[var(--muted)]">
+                      {preferences.units}
+                    </span>
+                  </p>
+                  <p className="text-[12px] text-[var(--muted)]">
+                    ×{pr.reps} · {pr.dateLabel}
                   </p>
                 </div>
               ))}
-            </Card>
+            </div>
           </section>
+        ) : null}
+
+        {insights.bestSession ? (
+          <button
+            type="button"
+            onClick={() => onOpenHistory(insights.bestSession!.id)}
+            className="w-full overflow-hidden rounded-[var(--radius-2xl)] bg-gradient-to-br from-[var(--panel-ink)] to-[var(--panel-ink-end)] p-5 text-left text-white shadow-[var(--shadow-lg)] active:scale-[0.985]"
+          >
+            <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/55">
+              {l('Buổi mạnh nhất', 'Best session')}
+            </p>
+            <p className="mt-2 text-[22px] font-semibold tracking-[var(--tracking-snug)]">
+              {insights.bestSession.title}
+            </p>
+            <p className="mt-1 text-[14px] text-white/65">
+              {formatVolume(insights.bestSession.volume)} volume · {insights.bestSession.dateLabel} ·{' '}
+              {l('xem chi tiết', 'tap to view')}
+            </p>
+          </button>
         ) : null}
 
         {insights.muscleVolume.length > 0 ? (
           <section className="space-y-3">
             <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
-              {locale === 'vi' ? 'Xu hướng tuần (nhóm)' : 'This week focus'}
+              {l('Focus tuần này', 'This week focus')}
             </h2>
-            <Card className="space-y-2">
+            <Card className="space-y-2.5">
               {insights.muscleVolume.map((item) => {
                 const max = insights.muscleVolume[0]?.volume || 1;
                 return (
                   <div key={item.muscle} className="space-y-1">
                     <div className="flex justify-between text-[12px] font-semibold">
                       <span className="text-[var(--ink-soft)]">{item.muscle}</span>
-                      <span className="tabular-nums text-[var(--muted)]">{formatVolume(item.volume)}</span>
+                      <span className="tabular-nums text-[var(--muted)]">
+                        {formatVolume(item.volume)}
+                      </span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-[var(--surface)]">
+                    <div className="h-2 overflow-hidden rounded-full bg-[var(--surface)]">
                       <div
                         className="h-full rounded-full bg-[var(--accent)]"
                         style={{ width: `${Math.max(8, (item.volume / max) * 100)}%` }}
@@ -446,63 +606,94 @@ export function ProfileScreen({
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
-              {locale === 'vi' ? 'Lịch sử tập' : 'Workout history'}
+              {l('Lịch sử tập', 'Workout history')}
             </h2>
-            <span className="text-[12px] font-semibold text-[var(--ink-soft)]">
-              {history.length} {locale === 'vi' ? 'buổi' : 'sessions'}
-            </span>
+            {history.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setHistorySheet(true)}
+                className="text-[13px] font-semibold text-[var(--accent)]"
+              >
+                {l(`Xem tất cả (${history.length})`, `See all (${history.length})`)}
+              </button>
+            ) : (
+              <span className="text-[12px] font-semibold text-[var(--ink-soft)]">0</span>
+            )}
           </div>
           {history.length === 0 ? (
             <Card className="space-y-3 text-center">
               <p className="text-[14px] text-[var(--ink-soft)]">
-                {locale === 'vi'
-                  ? 'Chưa có buổi tập nào. Về Home, chọn gợi ý hôm nay và Start — dữ liệu chỉ lưu trên thiết bị (invite beta).'
-                  : 'No sessions yet. Go Home, pick today’s suggestion, and Start — data stays on this device (invite beta).'}
+                {isVi
+                  ? 'Chưa có buổi nào. Tập xong sẽ hiện ở đây — mở biểu đồ và PR.'
+                  : 'No sessions yet. Finish a workout to unlock charts and PRs here.'}
               </p>
-              <Button variant="secondary" size="sm" onClick={onLoadSampleHistory}>
-                {locale === 'vi' ? 'Xem demo lịch sử' : 'Preview sample history'}
-              </Button>
+              <div className="flex justify-center gap-2">
+                {onGoTrain ? (
+                  <Button size="sm" onClick={onGoTrain}>
+                    {l('Tập hôm nay', 'Train today')}
+                  </Button>
+                ) : null}
+                <Button variant="secondary" size="sm" onClick={onLoadSampleHistory}>
+                  {l('Xem demo', 'Preview sample')}
+                </Button>
+              </div>
             </Card>
           ) : (
-            <Card padding="none" className="overflow-hidden">
-              {history.slice(0, 6).map((session, index) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => onOpenHistory(session.id)}
-                  className={cn(
-                    'flex min-h-[var(--row-min-h)] w-full items-center gap-3.5 px-4 text-left transition-colors active:bg-[var(--surface)]',
-                    index < Math.min(history.length, 6) - 1 && 'border-b border-[var(--border)]',
-                  )}
-                >
-                  <div className="flex-1">
-                    <p className="line-clamp-1 text-[15px] font-semibold text-[var(--black)]">{session.title}</p>
-                    <p className="mt-0.5 text-[12px] text-[var(--ink-soft)]">
-                      {session.dateLabel} · {session.durationMin} {t('min')} · {formatVolume(session.volume)}
-                    </p>
-                  </div>
-                  <span className="text-[12px] font-semibold text-[var(--accent)]">
-                    {locale === 'vi' ? 'Mở' : 'Open'}
-                  </span>
-                </button>
-              ))}
-            </Card>
+            <ul className="space-y-2">
+              {history.slice(0, 5).map((session) => {
+                const setCount = session.exercises.reduce(
+                  (sum, item) => sum + item.sets.length,
+                  0,
+                );
+                return (
+                  <li key={session.id}>
+                    <button
+                      type="button"
+                      onClick={() => onOpenHistory(session.id)}
+                      className="flex w-full overflow-hidden rounded-[var(--radius-xl)] bg-[var(--white)] text-left shadow-[var(--shadow-md)] active:scale-[0.985]"
+                    >
+                      <div
+                        className={cn('w-14 shrink-0 bg-gradient-to-b', session.tone)}
+                        aria-hidden
+                      />
+                      <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3.5 py-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-[15px] font-semibold text-[var(--black)]">
+                            {session.title}
+                          </p>
+                          <p className="mt-0.5 text-[12px] text-[var(--ink-soft)]">
+                            {session.dateLabel} · {session.durationMin} {t('min')} · {setCount}{' '}
+                            {t('sets')}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[14px] font-semibold tabular-nums text-[var(--black)]">
+                            {formatVolume(session.volume)}
+                          </p>
+                          <p className="text-[11px] font-semibold text-[var(--accent)]">
+                            {l('Mở', 'Open')}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
 
-
-
         <section className="space-y-3">
           <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
-            {locale === 'vi' ? 'Gợi ý tuần này' : 'Coach notes'}
+            {l('Gợi ý cho bạn', 'Coach notes')}
           </h2>
-          <Card className="space-y-2.5">
+          <div className="space-y-2">
             {coachNotes.map((note) => (
-              <p key={note} className="text-[14px] leading-relaxed text-[var(--ink-soft)]">
-                • {note}
-              </p>
+              <Card key={note} className="border border-[var(--border)] bg-[var(--accent-mist)]/40">
+                <p className="text-[14px] leading-relaxed text-[var(--black)]">{note}</p>
+              </Card>
             ))}
-          </Card>
+          </div>
         </section>
 
         <Button variant="secondary" fullWidth size="lg" onClick={onSignOut}>
@@ -521,19 +712,59 @@ export function ProfileScreen({
         <div className="flex flex-wrap items-center justify-center gap-3 text-[12px] font-semibold text-[var(--accent)]">
           <Link href="/legal/terms">Terms</Link>
           <Link href="/legal/privacy">Privacy</Link>
-          <Link href="/legal/disclaimer">{locale === 'vi' ? 'Disclaimer sức khỏe' : 'Health'}</Link>
+          <Link href="/legal/disclaimer">{l('Disclaimer sức khỏe', 'Health')}</Link>
         </div>
       </div>
 
-      <BottomSheet open={settingsSheet} onClose={() => setSettingsSheet(false)} title={locale === 'vi' ? 'Cài đặt' : 'Settings'}>
+      <BottomSheet
+        open={historySheet}
+        onClose={() => setHistorySheet(false)}
+        title={l('Toàn bộ lịch sử', 'All workout history')}
+        size="tall"
+      >
+        <ul className="space-y-2">
+          {history.map((session) => {
+            const setCount = session.exercises.reduce(
+              (sum, item) => sum + item.sets.length,
+              0,
+            );
+            return (
+              <li key={session.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistorySheet(false);
+                    onOpenHistory(session.id);
+                  }}
+                  className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-xl)] bg-[var(--surface)] px-4 py-3.5 text-left active:scale-[0.985]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[15px] font-semibold text-[var(--black)]">
+                      {session.title}
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-[var(--ink-soft)]">
+                      {session.dateLabel} · {session.durationMin} {t('min')} · {setCount} {t('sets')}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[14px] font-semibold tabular-nums text-[var(--accent)]">
+                    {formatVolume(session.volume)}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </BottomSheet>
+
+      <BottomSheet open={settingsSheet} onClose={() => setSettingsSheet(false)} title={l('Cài đặt', 'Settings')}>
         <div className="space-y-3">
           {cloudSyncEnabled ? (
             <div className="space-y-2 rounded-[var(--radius-xl)] bg-[var(--surface)] p-3">
               <p className="text-[13px] font-semibold text-[var(--black)]">
-                {locale === 'vi' ? 'Đồng bộ cloud' : 'Cloud sync'}
+                {l('Đồng bộ cloud', 'Cloud sync')}
               </p>
               <p className="text-[12px] leading-relaxed text-[var(--muted)]">
-                {locale === 'vi'
+                {isVi
                   ? 'Prefs, lịch sử, list tùy chỉnh và favorites tự đẩy lên Supabase khi bạn thay đổi. Bấm Sync now để kéo + đẩy ngay.'
                   : 'Prefs, history, custom lists, and favorites push to Supabase as you change them. Tap Sync now to pull + push immediately.'}
               </p>
@@ -548,31 +779,27 @@ export function ProfileScreen({
                 onClick={() => void onSyncNow?.()}
               >
                 {syncBusy
-                  ? locale === 'vi'
-                    ? 'Đang đồng bộ…'
-                    : 'Syncing…'
-                  : locale === 'vi'
-                    ? 'Sync now'
-                    : 'Sync now'}
+                  ? l('Đang đồng bộ…', 'Syncing…')
+                  : l('Sync now', 'Sync now')}
               </Button>
             </div>
           ) : null}
           <div className="space-y-2 rounded-[var(--radius-xl)] bg-[var(--surface)] p-3">
             <p className="text-[13px] font-semibold text-[var(--black)]">
-              {locale === 'vi' ? 'Đồng bộ thiết bị' : 'Sync devices'}
+              {l('Đồng bộ thiết bị', 'Sync devices')}
             </p>
             <p className="text-[12px] leading-relaxed text-[var(--muted)]">
               {cloudSyncEnabled
-                ? locale === 'vi'
+                ? isVi
                   ? 'Vẫn có thể xuất/nhập file để backup tay hoặc chuyển máy khi offline.'
                   : 'You can still export/import a file for manual backup or offline handoff.'
-                : locale === 'vi'
+                : isVi
                   ? 'Xuất gói dữ liệu trên máy này → gửi/AirDrop → nhập trên máy kia. Đăng nhập email để bật cloud sync.'
                   : 'Export a sync pack on this device → share/AirDrop → import on the other. Sign in with email to enable cloud sync.'}
             </p>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="secondary" size="sm" onClick={onExportData}>
-                {locale === 'vi' ? 'Xuất gói' : 'Export pack'}
+                {l('Xuất gói', 'Export pack')}
               </Button>
               <Button
                 variant="secondary"
@@ -588,12 +815,8 @@ export function ProfileScreen({
                 }}
               >
                 {shareBusy
-                  ? locale === 'vi'
-                    ? 'Đang gửi…'
-                    : 'Sharing…'
-                  : locale === 'vi'
-                    ? 'Chia sẻ'
-                    : 'Share'}
+                  ? l('Đang gửi…', 'Sharing…')
+                  : l('Chia sẻ', 'Share')}
               </Button>
               <Button
                 variant="secondary"
@@ -606,12 +829,8 @@ export function ProfileScreen({
                 }}
               >
                 {importBusy
-                  ? locale === 'vi'
-                    ? 'Đang đọc…'
-                    : 'Reading…'
-                  : locale === 'vi'
-                    ? 'Nhập gói (xem trước)'
-                    : 'Import pack (preview)'}
+                  ? l('Đang đọc…', 'Reading…')
+                  : l('Nhập gói (xem trước)', 'Import pack (preview)')}
               </Button>
             </div>
             {importError ? (
@@ -636,7 +855,7 @@ export function ProfileScreen({
                   setSettingsSheet(false);
                 } catch {
                   setImportError(
-                    locale === 'vi'
+                    isVi
                       ? 'File không hợp lệ hoặc phiên bản không hỗ trợ.'
                       : 'Invalid file or unsupported backup version.',
                   );
@@ -670,47 +889,39 @@ export function ProfileScreen({
       <BottomSheet
         open={Boolean(importPreview)}
         onClose={() => setImportPreview(null)}
-        title={locale === 'vi' ? 'Xem trước nhập liệu' : 'Import preview'}
+        title={l('Xem trước nhập liệu', 'Import preview')}
       >
         {importPreview ? (
           <div className="space-y-4">
             <div className="space-y-1.5 rounded-[var(--radius-xl)] bg-[var(--surface)] p-4 text-[13px] text-[var(--ink-soft)]">
               <p>
                 <span className="font-semibold text-[var(--black)]">
-                  {locale === 'vi' ? 'Tài khoản: ' : 'Account: '}
+                  {l('Tài khoản: ', 'Account: ')}
                 </span>
                 {importPreview.summary.userLabel}
               </p>
               <p>
                 <span className="font-semibold text-[var(--black)]">
-                  {locale === 'vi' ? 'Xuất lúc: ' : 'Exported: '}
+                  {l('Xuất lúc: ', 'Exported: ')}
                 </span>
                 {formatBackupStamp(importPreview.summary.exportedAt)}
               </p>
               <p>
-                {locale === 'vi' ? 'Lịch sử' : 'History'}: {importPreview.summary.historyCount} ·{' '}
-                {locale === 'vi' ? 'List' : 'Lists'}: {importPreview.summary.customCount} ·{' '}
-                {locale === 'vi' ? 'Yêu thích' : 'Favorites'}: {importPreview.summary.favoritesCount}
+                {l('Lịch sử', 'History')}: {importPreview.summary.historyCount} ·{' '}
+                {l('List', 'Lists')}: {importPreview.summary.customCount} ·{' '}
+                {l('Yêu thích', 'Favorites')}: {importPreview.summary.favoritesCount}
               </p>
               <p>
                 {importPreview.summary.hasPreferences
-                  ? locale === 'vi'
-                    ? 'Có preferences'
-                    : 'Includes preferences'
-                  : locale === 'vi'
-                    ? 'Không có preferences'
-                    : 'No preferences'}
+                  ? l('Có preferences', 'Includes preferences')
+                  : l('Không có preferences', 'No preferences')}
                 {' · '}
                 {importPreview.summary.hasReminder
-                  ? locale === 'vi'
-                    ? 'Có reminder'
-                    : 'Includes reminder'
-                  : locale === 'vi'
-                    ? 'Không có reminder'
-                    : 'No reminder'}
+                  ? l('Có reminder', 'Includes reminder')
+                  : l('Không có reminder', 'No reminder')}
               </p>
               <p className="pt-1 text-[12px] text-[var(--muted)]">
-                {locale === 'vi'
+                {isVi
                   ? `Máy này hiện có ${historyCount} buổi trong lịch sử.`
                   : `This device currently has ${historyCount} history session${historyCount === 1 ? '' : 's'}.`}
               </p>
@@ -727,9 +938,9 @@ export function ProfileScreen({
                     : 'bg-[var(--surface)] text-[var(--ink-soft)]',
                 )}
               >
-                {locale === 'vi' ? 'Gộp (an toàn)' : 'Merge (safe)'}
+                {l('Gộp (an toàn)', 'Merge (safe)')}
                 <span className="mt-1 block text-[11px] font-medium opacity-80">
-                  {locale === 'vi' ? 'Giữ data cũ + mới' : 'Keep old + new'}
+                  {l('Giữ data cũ + mới', 'Keep old + new')}
                 </span>
               </button>
               <button
@@ -742,9 +953,9 @@ export function ProfileScreen({
                     : 'bg-[var(--surface)] text-[var(--ink-soft)]',
                 )}
               >
-                {locale === 'vi' ? 'Ghi đè' : 'Replace'}
+                {l('Ghi đè', 'Replace')}
                 <span className="mt-1 block text-[11px] font-medium opacity-80">
-                  {locale === 'vi' ? 'Xóa data máy này' : 'Wipe this device'}
+                  {l('Xóa data máy này', 'Wipe this device')}
                 </span>
               </button>
             </div>
@@ -758,15 +969,11 @@ export function ProfileScreen({
               }}
             >
               {importMode === 'replace'
-                ? locale === 'vi'
-                  ? 'Xác nhận ghi đè'
-                  : 'Confirm replace'
-                : locale === 'vi'
-                  ? 'Xác nhận gộp'
-                  : 'Confirm merge'}
+                ? l('Xác nhận ghi đè', 'Confirm replace')
+                : l('Xác nhận gộp', 'Confirm merge')}
             </Button>
             <Button variant="secondary" fullWidth size="lg" onClick={() => setImportPreview(null)}>
-              {locale === 'vi' ? 'Hủy' : 'Cancel'}
+              {l('Hủy', 'Cancel')}
             </Button>
           </div>
         ) : null}
@@ -775,7 +982,7 @@ export function ProfileScreen({
       <BottomSheet
         open={reminderSheet}
         onClose={() => setReminderSheet(false)}
-        title={locale === 'vi' ? 'Nhắc tập tuần' : 'Weekly reminder'}
+        title={l('Nhắc tập tuần', 'Weekly reminder')}
       >
         <div className="space-y-5">
           <button
@@ -784,7 +991,7 @@ export function ProfileScreen({
             className="flex min-h-[var(--row-min-h)] w-full items-center justify-between rounded-[var(--radius-xl)] bg-[var(--surface)] px-4"
           >
             <span className="text-[15px] font-medium text-[var(--black)]">
-              {locale === 'vi' ? 'Bật nhắc trong app' : 'Enable in-app reminder'}
+              {l('Bật nhắc trong app', 'Enable in-app reminder')}
             </span>
             <span
               className={cn(
@@ -794,7 +1001,7 @@ export function ProfileScreen({
                   : 'bg-[var(--border)] text-[var(--muted)]',
               )}
             >
-              {reminder.enabled ? (locale === 'vi' ? 'Bật' : 'On') : locale === 'vi' ? 'Tắt' : 'Off'}
+              {reminder.enabled ? l('Bật', 'On') : l('Tắt', 'Off')}
             </span>
           </button>
 
@@ -812,7 +1019,7 @@ export function ProfileScreen({
             className="flex min-h-[var(--row-min-h)] w-full items-center justify-between rounded-[var(--radius-xl)] bg-[var(--surface)] px-4"
           >
             <span className="text-[15px] font-medium text-[var(--black)]">
-              {locale === 'vi' ? 'Thông báo hệ thống' : 'System notification'}
+              {l('Thông báo hệ thống', 'System notification')}
             </span>
             <span
               className={cn(
@@ -822,13 +1029,13 @@ export function ProfileScreen({
                   : 'bg-[var(--border)] text-[var(--muted)]',
               )}
             >
-              {reminder.systemNotify ? (locale === 'vi' ? 'Bật' : 'On') : locale === 'vi' ? 'Tắt' : 'Off'}
+              {reminder.systemNotify ? l('Bật', 'On') : l('Tắt', 'Off')}
             </span>
           </button>
 
           <div className="space-y-2">
             <p className="text-[13px] font-semibold text-[var(--ink-soft)]">
-              {locale === 'vi' ? 'Ngày trong tuần' : 'Days of week'}
+              {l('Ngày trong tuần', 'Days of week')}
             </p>
             <div className="flex flex-wrap gap-2">
               {reminderDayOrder.map((day) => {
@@ -858,7 +1065,7 @@ export function ProfileScreen({
           </div>
 
           <InputNumber
-            label={locale === 'vi' ? 'Giờ nhắc (0–23)' : 'Reminder hour (0–23)'}
+            label={l('Giờ nhắc (0–23)', 'Reminder hour (0–23)')}
             value={reminder.hour}
             onChange={(hour) => onUpdateReminder({ hour, enabled: true })}
             min={0}
@@ -867,7 +1074,7 @@ export function ProfileScreen({
           />
 
           <p className="text-[13px] text-[var(--muted)]">
-            {locale === 'vi'
+            {isVi
               ? 'Nhắc trong app khi mở REPLY. Bật thông báo hệ thống để hiện banner OS (cần cấp quyền; không phải push server).'
               : 'In-app prompt when you open REPLY. System notifications show an OS banner (needs permission; not server push).'}
           </p>
@@ -881,7 +1088,7 @@ export function ProfileScreen({
       <BottomSheet open={goalSheet} onClose={() => setGoalSheet(false)} title={t('weeklyGoal')}>
         <div className="space-y-6">
           <InputNumber
-            label={locale === 'vi' ? 'Buổi mỗi tuần' : 'Sessions per week'}
+            label={l('Buổi mỗi tuần', 'Sessions per week')}
             value={goalDraft}
             onChange={setGoalDraft}
             min={1}
@@ -995,18 +1202,18 @@ export function ProfileScreen({
         </div>
       </BottomSheet>
 
-      <BottomSheet open={confirmClear} onClose={() => setConfirmClear(false)} title={locale === 'vi' ? 'Xóa lịch sử?' : 'Clear history?'}>
+      <BottomSheet open={confirmClear} onClose={() => setConfirmClear(false)} title={l('Xóa lịch sử?', 'Clear history?')}>
         <div className="space-y-4">
           <p className="text-[15px] text-[var(--muted)]">
-            {locale === 'vi'
+            {isVi
               ? `Xóa ${historyCount} buổi đã lưu trên thiết bị này. Mục yêu thích vẫn giữ.`
               : `This removes ${historyCount} saved session${historyCount === 1 ? '' : 's'} from this device. Favorites stay.`}
           </p>
           <Button fullWidth size="lg" onClick={() => { onClearHistory(); setConfirmClear(false); }}>
-            {locale === 'vi' ? 'Xóa lịch sử' : 'Clear history'}
+            {l('Xóa lịch sử', 'Clear history')}
           </Button>
           <Button variant="secondary" fullWidth size="lg" onClick={() => setConfirmClear(false)}>
-            {locale === 'vi' ? 'Hủy' : 'Cancel'}
+            {l('Hủy', 'Cancel')}
           </Button>
         </div>
       </BottomSheet>
