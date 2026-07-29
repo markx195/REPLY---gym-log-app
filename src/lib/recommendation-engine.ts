@@ -173,6 +173,15 @@ function daysSinceFocus(history: HistorySession[], pool: Recommendable[], focus:
   return 999;
 }
 
+function dayFocusHint(now = new Date()): 'push' | 'pull' | 'legs' | 'full-body' {
+  // Silent weekly rotation — feels “smart” without an LLM.
+  const day = now.getDay(); // 0 Sun … 6 Sat
+  if (day === 1 || day === 4) return 'push';
+  if (day === 2 || day === 5) return 'pull';
+  if (day === 3 || day === 6) return 'legs';
+  return 'full-body';
+}
+
 function scoreItem(
   item: Recommendable,
   history: HistorySession[],
@@ -182,18 +191,31 @@ function scoreItem(
 ): { score: number; reasonType: RecommendationReason } {
   let score = 40;
   let reasonType: RecommendationReason = 'consistency';
+  const focus = focusKey(item);
+  const title = item.title.toLowerCase();
+  const focusText = item.focus.toLowerCase();
 
   const durationGap = Math.abs(item.durationMin - prefs.sessionMin);
   score += Math.max(0, 28 - durationGap);
   if (durationGap <= 8) reasonType = 'duration-fit';
 
-  if (prefs.primaryGoal === 'strength' && item.title.toLowerCase().includes('strength')) {
-    score += 12;
+  if (prefs.primaryGoal === 'strength' && (title.includes('strength') || focusText.includes('strength'))) {
+    score += 14;
     reasonType = 'goal-fit';
   }
-  if (prefs.primaryGoal === 'muscle' && (item.focus.toLowerCase().includes('chest') || item.exercises >= 5)) {
-    score += 8;
-    reasonType = 'goal-fit';
+  if (prefs.primaryGoal === 'muscle') {
+    if (item.exercises >= 5) score += 8;
+    if (
+      focusText.includes('chest') ||
+      focusText.includes('back') ||
+      focusText.includes('hypertrophy') ||
+      focusText.includes('pump') ||
+      focusText.includes('ngực') ||
+      focusText.includes('lưng')
+    ) {
+      score += 8;
+      reasonType = 'goal-fit';
+    }
   }
   if (prefs.primaryGoal === 'fat-loss' && item.durationMin <= 35) {
     score += 10;
@@ -204,9 +226,17 @@ function scoreItem(
   }
 
   if (prefs.focusPriority !== 'full-body') {
-    if (focusKey(item) === prefs.focusPriority) {
+    if (focus === prefs.focusPriority) {
       score += 14;
       reasonType = 'goal-fit';
+    }
+  } else {
+    const todayHint = dayFocusHint();
+    if (focus === todayHint) {
+      score += 12;
+      if (reasonType === 'consistency' || reasonType === 'duration-fit') {
+        reasonType = 'neglected-focus';
+      }
     }
   }
 
@@ -225,9 +255,22 @@ function scoreItem(
   }
 
   const neglected = mostNeglectedFocus(history, pool);
-  if (focusKey(item) === neglected && neglected !== 'other') {
+  if (focus === neglected && neglected !== 'other') {
     score += 18;
     reasonType = 'neglected-focus';
+  }
+
+  // Prefer variety across the last 7 sessions.
+  const week = history.slice(0, 7);
+  const sameFocusInWeek = week.filter((session) => {
+    const hit = pool.find((entry) => entry.id === session.workoutId);
+    return hit ? focusKey(hit) === focus : false;
+  }).length;
+  if (sameFocusInWeek >= 3 && focus !== 'full-body') {
+    score -= 16;
+    reasonType = 'reduce-fatigue';
+  } else if (sameFocusInWeek === 0 && history.length > 0) {
+    score += 8;
   }
 
   const recent = history.slice(0, 5).map((entry) => entry.workoutId);
@@ -237,7 +280,7 @@ function scoreItem(
     .map((id) => pool.find((entry) => entry.id === id))
     .filter((entry): entry is Recommendable => Boolean(entry))
     .map(focusKey);
-  if (recentFocus[0] === focusKey(item) && focusKey(item) !== 'full-body') {
+  if (recentFocus[0] === focus && focus !== 'full-body') {
     score -= 12;
     reasonType = 'reduce-fatigue';
   }
@@ -269,6 +312,7 @@ function buildReason(
   const locale = prefs.locale;
   const focus = focusKey(item);
   const neglectedDays = daysSinceFocus(history, pool, focus);
+  const todayHint = dayFocusHint();
 
   if (locale === 'vi') {
     if (reasonType === 'duration-fit') {
@@ -281,9 +325,19 @@ function buildReason(
       return 'Hướng đúng mục tiêu bạn đã chọn.';
     }
     if (reasonType === 'neglected-focus') {
-      return neglectedDays < 900
-        ? `Đã ${neglectedDays} ngày chưa tập nhóm này.`
-        : 'Giữ cân bằng nhóm cơ trong tuần.';
+      if (neglectedDays < 900) {
+        return `Đã ${neglectedDays} ngày chưa tập nhóm này.`;
+      }
+      if (prefs.focusPriority === 'full-body' && focus === todayHint) {
+        const labels: Record<string, string> = {
+          push: 'đẩy (ngực/vai)',
+          pull: 'kéo (lưng)',
+          legs: 'chân',
+          'full-body': 'toàn thân',
+        };
+        return `Hôm nay hợp nhịp ${labels[todayHint] ?? todayHint}.`;
+      }
+      return 'Giữ cân bằng nhóm cơ trong tuần.';
     }
     if (reasonType === 'reduce-fatigue') {
       return 'Đổi hướng để đỡ lặp lại buổi trước.';
@@ -307,9 +361,13 @@ function buildReason(
     return 'Lined up with your training goal.';
   }
   if (reasonType === 'neglected-focus') {
-    return neglectedDays < 900
-      ? `${neglectedDays} days since this focus.`
-      : 'Keeps your week balanced.';
+    if (neglectedDays < 900) {
+      return `${neglectedDays} days since this focus.`;
+    }
+    if (prefs.focusPriority === 'full-body' && focus === todayHint) {
+      return `Smart split for today: ${todayHint}.`;
+    }
+    return 'Keeps your week balanced.';
   }
   if (reasonType === 'reduce-fatigue') {
     return 'A fresher angle after recent sessions.';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BottomSheet, Button, InputNumber } from '@/components/ui';
+import { BottomSheet, Button } from '@/components/ui';
 import { RestTimer } from '@/components/workout/rest-timer';
 import {
   applySwap,
@@ -305,7 +305,7 @@ export function ActiveWorkoutScreen({
       />
 
       {toast ? (
-        <div className="pointer-events-none absolute left-1/2 top-[max(4.5rem,calc(env(safe-area-inset-top)+3.5rem))] z-30 -translate-x-1/2 rounded-full bg-[var(--black)] px-4 py-2 text-[13px] font-semibold text-white shadow-[var(--shadow-md)]">
+        <div className="pointer-events-none absolute left-1/2 top-[max(4.5rem,calc(env(safe-area-inset-top)+3.5rem))] z-30 -translate-x-1/2 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-semibold text-white shadow-[var(--shadow-md)]">
           {toast}
         </div>
       ) : null}
@@ -360,7 +360,7 @@ export function ActiveWorkoutScreen({
             )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                <span className="rounded-full bg-[var(--accent)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white">
                   Set {currentSet}/{exercise.targetSets}
                 </span>
                 <button
@@ -411,7 +411,7 @@ export function ActiveWorkoutScreen({
               <button
                 type="button"
                 onClick={() => setSwapOpen(true)}
-                className="rounded-full bg-[var(--accent-soft)] px-3.5 py-2 text-[13px] font-semibold text-[var(--accent)]"
+                className="rounded-full bg-[var(--accent)] px-3.5 py-2 text-[13px] font-semibold text-white"
               >
                 Swap
               </button>
@@ -428,7 +428,7 @@ export function ActiveWorkoutScreen({
           </div>
         </section>
 
-        {/* Last chips */}
+        {/* History strip */}
         <div className="mt-4 flex items-center gap-2 overflow-x-auto hide-scrollbar">
           <button
             type="button"
@@ -436,7 +436,7 @@ export function ActiveWorkoutScreen({
               setWeight(exercise.lastWeight);
               setReps(exercise.lastReps);
             }}
-            className="shrink-0 rounded-full bg-[var(--black)] px-3.5 py-2 text-[13px] font-semibold text-white active:scale-95"
+            className="shrink-0 rounded-full bg-[var(--accent)] px-3.5 py-2 text-[13px] font-semibold text-white active:scale-95"
           >
             Last {exercise.lastWeight}×{exercise.lastReps}
           </button>
@@ -455,152 +455,270 @@ export function ActiveWorkoutScreen({
           ))}
         </div>
 
-        {/* Logger panel */}
-        <section className="mt-4 overflow-hidden rounded-[var(--radius-2xl)] bg-[var(--white)] p-4 shadow-[var(--shadow-lg)]">
-          <InputNumber
-            label="Weight"
-            value={weight}
-            onChange={setWeight}
-            step={exercise.weightStep}
-            min={0}
-            max={500}
-            unit={exercise.unit}
-            allowDecimal
-            size="hero"
-          />
+        {/* Scoreboard logger — one glance, two thumbs */}
+        {!resting && !setComplete ? (
+          <section className="relative mt-4 overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-md)]">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-12 -top-16 h-44 w-44 rounded-full bg-[var(--accent)]/18 blur-3xl"
+            />
 
+            <div className="relative mb-4 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                  Set {currentSet} · live
+                </p>
+                <p className="mt-1 flex items-baseline gap-1 tabular-nums">
+                  <span className="text-[40px] font-semibold leading-none tracking-[-0.05em] text-[var(--black)]">
+                    {weight}
+                  </span>
+                  <span className="text-[15px] font-semibold text-[var(--ink-soft)]">
+                    {exercise.unit}
+                  </span>
+                  <span className="px-1 text-[28px] font-semibold text-[var(--muted)]">×</span>
+                  <span className="text-[40px] font-semibold leading-none tracking-[-0.05em] text-[var(--black)]">
+                    {reps}
+                  </span>
+                </p>
+                <p
+                  className={cn(
+                    'mt-1.5 text-[12px] font-semibold tabular-nums',
+                    delta > 0
+                      ? 'text-[var(--accent)]'
+                      : delta < 0
+                        ? 'text-[var(--danger)]'
+                        : 'text-[var(--muted)]',
+                  )}
+                >
+                  {delta > 0
+                    ? `+${delta} ${exercise.unit} vs last`
+                    : delta < 0
+                      ? `${delta} ${exercise.unit} vs last`
+                      : 'Match last · or push'}
+                </p>
+              </div>
 
-          <div className="mt-2 flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setWeight(Math.max(0, Number((weight - exercise.weightStep).toFixed(2))))}
-              className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[12px] font-semibold text-[var(--ink-soft)]"
-            >
-              -{exercise.weightStep}
-            </button>
-            <button
-              type="button"
-              onClick={() => setWeight(Number((weight + exercise.weightStep).toFixed(2)))}
-              className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[12px] font-semibold text-[var(--ink-soft)]"
-            >
-              +{exercise.weightStep}
-            </button>
-          </div>
-
-          <p
-            className={cn(
-              'mt-2 text-center text-[13px] font-semibold tabular-nums',
-              delta > 0
-                ? 'text-[var(--accent)]'
-                : delta < 0
-                  ? 'text-[var(--muted)]'
-                  : 'text-[var(--muted-light)]',
-            )}
-          >
-            {delta > 0 ? `+${delta} vs last` : delta < 0 ? `${delta} vs last` : 'Same as last'}
-          </p>
-          <div className="my-4 h-px bg-[var(--border)]" />
-          <InputNumber
-            label="Reps"
-            value={reps}
-            onChange={setReps}
-            step={1}
-            min={1}
-            max={50}
-            allowDecimal={false}
-            size="hero"
-          />
-
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setReps(Math.max(1, reps - 1))}
-              className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[12px] font-semibold text-[var(--ink-soft)]"
-            >
-              -1
-            </button>
-            <button
-              type="button"
-              onClick={() => setReps(Math.min(50, reps + 1))}
-              className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[12px] font-semibold text-[var(--ink-soft)]"
-            >
-              +1
-            </button>
-          </div>
-
-          {exercise.progressionNote ? (
-            <p className="mt-3 text-center text-[12px] font-medium leading-relaxed text-[var(--accent)]">
-              {exercise.progressionNote}
-            </p>
-          ) : null}
-
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setLogWarmup((value) => !value)}
-              className={cn(
-                'rounded-full px-3 py-1.5 text-[12px] font-semibold',
-                logWarmup
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'bg-[var(--surface)] text-[var(--ink-soft)]',
-              )}
-            >
-              Warmup
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowExtras((value) => !value)}
-              className={cn(
-                'rounded-full px-3 py-1.5 text-[12px] font-semibold',
-                showExtras
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'bg-[var(--surface)] text-[var(--ink-soft)]',
-              )}
-            >
-              RPE / Note
-            </button>
-            <button
-              type="button"
-              onClick={undoLastSet}
-              disabled={exercise.sets.length === 0 && !resting}
-              className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[12px] font-semibold text-[var(--ink-soft)] disabled:opacity-40"
-            >
-              Undo
-            </button>
-          </div>
-
-          {showExtras ? (
-            <div className="mt-3 space-y-3 rounded-[var(--radius-lg)] bg-[var(--surface)] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[12px] font-semibold text-[var(--ink-soft)]">RPE</span>
-                <div className="flex gap-1">
-                  {[6, 7, 8, 9, 10].map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setRpe(value)}
+              <div className="flex shrink-0 gap-1.5">
+                {Array.from({ length: exercise.targetSets }, (_, i) => {
+                  const logged = exercise.sets.filter((s) => !s.isWarmup)[i];
+                  const active = i + 1 === currentSet;
+                  return (
+                    <div
+                      key={i}
                       className={cn(
-                        'h-8 w-8 rounded-full text-[12px] font-semibold',
-                        rpe === value
-                          ? 'bg-[var(--accent)] text-white'
-                          : 'bg-[var(--white)] text-[var(--muted)]',
+                        'flex h-12 min-w-[44px] flex-col items-center justify-center rounded-2xl px-1.5 text-center transition-all',
+                        logged
+                          ? 'bg-[var(--accent)] text-white shadow-[var(--shadow-sm)]'
+                          : active
+                            ? 'bg-[var(--accent-mist)] ring-2 ring-[var(--accent)]/45 text-[var(--black)]'
+                            : 'bg-[var(--white)] text-[var(--muted)]',
                       )}
                     >
-                      {value}
+                      <span className="text-[9px] font-semibold uppercase tracking-wide opacity-80">
+                        {i + 1}
+                      </span>
+                      <span className="text-[10px] font-semibold leading-none tabular-nums">
+                        {logged ? `${logged.weight}×${logged.reps}` : '—'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="relative grid grid-cols-2 gap-3">
+              <div className="rounded-[22px] bg-[var(--white)] p-3 shadow-[var(--shadow-sm)]">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                    Weight
+                  </p>
+                  <span className="text-[11px] font-semibold text-[var(--ink-soft)]">
+                    {exercise.unit}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setWeight(
+                        Math.max(0, Number((weight - exercise.weightStep).toFixed(2))),
+                      )
+                    }
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--surface)] text-[22px] font-semibold text-[var(--black)] active:scale-95"
+                    aria-label="Decrease weight"
+                  >
+                    −
+                  </button>
+                  <input
+                    inputMode="decimal"
+                    value={weight}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^\d.]/g, '');
+                      const n = Number(raw);
+                      if (raw === '' || Number.isNaN(n)) return;
+                      setWeight(Math.min(500, Math.max(0, n)));
+                    }}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full min-w-0 bg-transparent text-center text-[28px] font-semibold tracking-[-0.04em] text-[var(--black)] outline-none tabular-nums"
+                    aria-label="Weight"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setWeight(Number((weight + exercise.weightStep).toFixed(2)))
+                    }
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[22px] font-semibold text-white active:scale-95"
+                    aria-label="Increase weight"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="mt-2 flex justify-center gap-1.5">
+                  {[-exercise.weightStep * 2, exercise.weightStep * 2].map((step) => (
+                    <button
+                      key={step}
+                      type="button"
+                      onClick={() =>
+                        setWeight(
+                          Math.max(0, Number((weight + step).toFixed(2))),
+                        )
+                      }
+                      className="rounded-full bg-[var(--surface)] px-2.5 py-1 text-[11px] font-semibold text-[var(--ink-soft)] active:scale-95"
+                    >
+                      {step > 0 ? '+' : ''}
+                      {step}
                     </button>
                   ))}
                 </div>
               </div>
-              <input
-                value={note}
-                onChange={(event) => setNote(event.target.value.slice(0, 80))}
-                placeholder="Set note (optional)"
-                className="h-10 w-full rounded-[var(--radius-md)] bg-[var(--white)] px-3 text-[13px] text-[var(--black)] outline-none"
-              />
-            </div>
-          ) : null}
 
-        </section>
+              <div className="rounded-[22px] bg-[var(--white)] p-3 shadow-[var(--shadow-sm)]">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                  Reps
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setReps(Math.max(1, reps - 1))}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--surface)] text-[22px] font-semibold text-[var(--black)] active:scale-95"
+                    aria-label="Decrease reps"
+                  >
+                    −
+                  </button>
+                  <input
+                    inputMode="numeric"
+                    value={reps}
+                    onChange={(e) => {
+                      const n = Number(e.target.value.replace(/[^\d]/g, ''));
+                      if (Number.isNaN(n)) return;
+                      setReps(Math.min(50, Math.max(1, n)));
+                    }}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full min-w-0 bg-transparent text-center text-[28px] font-semibold tracking-[-0.04em] text-[var(--black)] outline-none tabular-nums"
+                    aria-label="Reps"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setReps(Math.min(50, reps + 1))}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[22px] font-semibold text-white active:scale-95"
+                    aria-label="Increase reps"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="mt-2 flex justify-center gap-1.5">
+                  {[6, 8, 10, 12].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setReps(n)}
+                      className={cn(
+                        'rounded-full px-2.5 py-1 text-[11px] font-semibold active:scale-95',
+                        reps === n
+                          ? 'bg-[var(--accent)] text-white'
+                          : 'bg-[var(--surface)] text-[var(--ink-soft)]',
+                      )}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {exercise.progressionNote ? (
+              <p className="relative mt-3 text-center text-[12px] font-medium leading-relaxed text-[var(--accent)]">
+                {exercise.progressionNote}
+              </p>
+            ) : null}
+
+            <div className="relative mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setLogWarmup((value) => !value)}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-[12px] font-semibold active:scale-95',
+                  logWarmup
+                    ? 'bg-[var(--accent)] text-white'
+                    : 'bg-[var(--white)] text-[var(--ink-soft)]',
+                )}
+              >
+                Warmup
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowExtras((value) => !value)}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-[12px] font-semibold active:scale-95',
+                  showExtras
+                    ? 'bg-[var(--accent)] text-white'
+                    : 'bg-[var(--white)] text-[var(--ink-soft)]',
+                )}
+              >
+                RPE / Note
+              </button>
+              <button
+                type="button"
+                onClick={undoLastSet}
+                disabled={exercise.sets.length === 0 && !resting}
+                className="ml-auto rounded-full bg-[var(--white)] px-3 py-1.5 text-[12px] font-semibold text-[var(--danger)] disabled:opacity-40 active:scale-95"
+              >
+                Undo
+              </button>
+            </div>
+
+            {showExtras ? (
+              <div className="relative mt-3 space-y-3 rounded-[var(--radius-lg)] bg-[var(--white)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-semibold text-[var(--ink-soft)]">RPE</span>
+                  <div className="flex gap-1">
+                    {[6, 7, 8, 9, 10].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setRpe(value)}
+                        className={cn(
+                          'h-8 w-8 rounded-full text-[12px] font-semibold',
+                          rpe === value
+                            ? 'bg-[var(--accent)] text-white'
+                            : 'bg-[var(--surface)] text-[var(--muted)]',
+                        )}
+                      >
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <input
+                  value={note}
+                  onChange={(event) => setNote(event.target.value.slice(0, 80))}
+                  placeholder="Set note (optional)"
+                  className="h-10 w-full rounded-[var(--radius-md)] bg-[var(--surface)] px-3 text-[13px] text-[var(--black)] outline-none"
+                />
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <div className="mt-auto space-y-3 pt-5">
           {resting ? (

@@ -24,7 +24,7 @@ export function HScroll({ children, className, contentClassName }: HScrollProps)
     <div
       ref={ref}
       className={cn(
-        '-mx-5 overflow-x-auto overflow-y-hidden px-5 pb-1 hide-scrollbar',
+        '-mx-5 overflow-x-auto overflow-y-hidden px-5 py-2 hide-scrollbar',
         'touch-pan-x cursor-grab active:cursor-grabbing select-none',
         className,
       )}

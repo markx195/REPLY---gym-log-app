@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BottomSheet, Button, HScroll } from '@/components/ui';
 import { CustomListBuilder } from '@/components/workout/custom-list-builder';
+import { BodyMotivationCard } from '@/components/workout/body-motivation-card';
+import { getExerciseById } from '@/data/exercises/catalog';
+import { workoutSessions } from '@/data/session';
 import { toneStyles } from '@/data/workouts';
 import { cn } from '@/lib/cn';
 import type { CustomWorkout } from '@/lib/custom-workouts-store';
@@ -24,6 +27,41 @@ import {
   type WorkoutDraft,
 } from '@/lib/workout-draft-store';
 
+function startOfWeekMs(now = Date.now()) {
+  const d = new Date(now);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // Monday start
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + diff);
+  return d.getTime();
+}
+
+function sessionsThisWeek(history: HistorySession[]) {
+  const start = startOfWeekMs();
+  return history.filter((s) => {
+    const t = new Date(`${s.date}T12:00:00`).getTime();
+    return t >= start;
+  }).length;
+}
+
+function coverForRecommendable(
+  item: Recommendable,
+  customs: CustomWorkout[],
+): string | null {
+  if (item.source === 'custom') {
+    const list = customs.find((c) => toRecommendableId(c.id) === item.id);
+    const first = list?.exerciseIds[0];
+    return first ? getExerciseById(first)?.image ?? null : null;
+  }
+  const firstId = workoutSessions[item.id]?.exercises[0]?.id;
+  return firstId ? getExerciseById(firstId)?.image ?? null : null;
+}
+
+function coverForCustomList(list: CustomWorkout): string | null {
+  const first = list.exerciseIds[0];
+  return first ? getExerciseById(first)?.image ?? null : null;
+}
+
 function greeting(locale: Locale) {
   const hour = new Date().getHours();
   if (locale === 'vi') {
@@ -41,6 +79,7 @@ type HomeScreenProps = {
   streak: number;
   history: HistorySession[];
   preferences: UserPreferences;
+  onUpdatePrefs: (partial: Partial<UserPreferences>) => void;
   customWorkouts: CustomWorkout[];
   onSaveCustomWorkout: (list: CustomWorkout) => void;
   onDeleteCustomWorkout: (id: string) => void;
@@ -54,6 +93,7 @@ export function HomeScreen({
   streak,
   history,
   preferences,
+  onUpdatePrefs,
   customWorkouts,
   onSaveCustomWorkout,
   onDeleteCustomWorkout,
@@ -103,9 +143,10 @@ export function HomeScreen({
       : baseRec.reason;
 
   const tone = toneStyles[pick.tone];
-  const isInk = pick.tone === 'ink';
+  const pickCover = coverForRecommendable(pick, customWorkouts);
 
   const topPicks = baseRec.ranked.slice(0, 3);
+  const weekSessions = useMemo(() => sessionsThisWeek(history), [history]);
 
   const openCreate = () => {
     setEditing(null);
@@ -168,92 +209,99 @@ export function HomeScreen({
           </section>
         ) : null}
 
+        <BodyMotivationCard
+          preferences={preferences}
+          sessionsThisWeek={weekSessions}
+          locale={locale}
+          onUpdatePrefs={onUpdatePrefs}
+          onStartToday={() => onStartWorkout(pick.id)}
+        />
+
         <section className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-[13px] font-semibold text-[var(--ink-soft)]">{t('forYou')}</p>
           </div>
-          <HScroll contentClassName="gap-2">
+          <HScroll contentClassName="gap-2.5">
             {topPicks.map((item) => {
               const active = item.id === pick.id;
+              const cover = coverForRecommendable(item, customWorkouts);
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => setPickOverride(item)}
                   className={cn(
-                    'w-[170px] shrink-0 rounded-[16px] border px-3.5 py-3 text-left transition-all',
-                    active
-                      ? 'border-[var(--accent)] bg-[var(--accent-mist)] shadow-[var(--shadow-sm)]'
-                      : 'border-transparent bg-[var(--white)] shadow-[var(--shadow-sm)]',
+                    'relative h-[108px] w-[148px] shrink-0 overflow-hidden rounded-[20px] text-left shadow-[var(--shadow-md)] transition-all active:scale-[0.98]',
+                    active && 'ring-2 ring-[var(--accent)]',
                   )}
                 >
-                  <p className="line-clamp-1 text-[14px] font-semibold text-[var(--black)]">
-                    {item.title}
-                  </p>
-                  <p className="mt-1 text-[11px] font-medium text-[var(--ink-soft)]">
-                    {item.durationMin} {t('min')} · {item.focus}
-                  </p>
+                  {cover ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={cover}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div
+                      className={cn(
+                        'absolute inset-0 bg-gradient-to-br',
+                        toneStyles[item.tone].wash,
+                      )}
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/10" />
+                  <div className="relative flex h-full flex-col justify-end p-3">
+                    <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-white">
+                      {item.title}
+                    </p>
+                    <p className="mt-1 text-[11px] font-medium text-white/70">
+                      {item.durationMin} {t('min')}
+                    </p>
+                  </div>
                 </button>
               );
             })}
           </HScroll>
         </section>
 
-        {/* One hero composition */}
+        {/* One hero composition — photo first */}
         <button
           type="button"
           onClick={() => onStartWorkout(pick.id)}
           className="group relative w-full overflow-hidden rounded-[var(--radius-2xl)] text-left shadow-[var(--shadow-lg)] transition-transform duration-200 active:scale-[0.985]"
         >
-          <div className={cn('absolute inset-0 bg-gradient-to-br', tone.wash)} aria-hidden />
-          <div
-            className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/35 blur-2xl"
-            aria-hidden
-          />
-          <div className="relative flex min-h-[280px] flex-col justify-between p-6">
+          {pickCover ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={pickCover}
+              alt=""
+              className="absolute inset-0 h-full w-full scale-105 object-cover transition-transform duration-500 group-active:scale-100"
+            />
+          ) : (
+            <div className={cn('absolute inset-0 bg-gradient-to-br', tone.wash)} aria-hidden />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/20" />
+          <div className="relative flex min-h-[300px] flex-col justify-between p-6">
             <div className="flex items-start justify-between gap-3">
-              <span
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-[var(--text-xs)] font-semibold uppercase tracking-[0.12em]',
-                  isInk ? 'bg-white/15 text-white/80' : 'bg-white/70 text-[var(--accent)]',
-                )}
-              >
+              <span className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-[var(--text-xs)] font-semibold uppercase tracking-[0.12em] text-white">
                 {pick.source === 'custom' ? t('yourList') : t('today')}
               </span>
-              <span
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-[var(--text-sm)] font-semibold',
-                  isInk ? 'bg-white/15 text-white' : 'bg-white/80 text-[var(--black)]',
-                )}
-              >
+              <span className="rounded-full bg-white/20 px-3 py-1.5 text-[var(--text-sm)] font-semibold text-white backdrop-blur-sm">
                 {pick.durationMin} {t('min')}
               </span>
             </div>
 
-            <div className="space-y-3 pt-8">
-              <div className={cn('h-1.5 w-10 rounded-full', tone.mark)} />
-              <h2
-                className={cn(
-                  'max-w-[16ch] text-[34px] font-semibold leading-[1.05] tracking-[var(--tracking-snug)]',
-                  isInk ? 'text-white' : 'text-[var(--black)]',
-                )}
-              >
+            <div className="space-y-3 pt-10">
+              <div className="h-1.5 w-10 rounded-full bg-[var(--accent)]" />
+              <h2 className="max-w-[16ch] text-[34px] font-semibold leading-[1.05] tracking-[var(--tracking-snug)] text-white">
                 {pick.title}
               </h2>
-              <p
-                className={cn(
-                  'max-w-[22rem] text-[15px] font-medium leading-snug',
-                  isInk ? 'text-white/70' : 'text-[var(--ink-soft)]',
-                )}
-              >
+              <p className="max-w-[22rem] text-[15px] font-medium leading-snug text-white/75">
                 {reason}
               </p>
-              <p
-                className={cn(
-                  'text-[13px] font-medium',
-                  isInk ? 'text-white/55' : 'text-[var(--muted)]',
-                )}
-              >
+              <p className="text-[13px] font-medium text-white/55">
                 {pick.focus} · {pick.exercises} {locale === 'vi' ? 'bài' : 'moves'}
               </p>
             </div>
@@ -293,6 +341,7 @@ export function HomeScreen({
             <ul className="space-y-2">
               {customWorkouts.slice(0, 4).map((list) => {
                 const listTone = toneStyles[customTone(list)];
+                const cover = coverForCustomList(list);
                 return (
                   <li key={list.id}>
                     <button
@@ -300,7 +349,21 @@ export function HomeScreen({
                       onClick={() => onStartWorkout(toRecommendableId(list.id))}
                       className="flex w-full items-center gap-3 overflow-hidden rounded-[var(--radius-xl)] bg-[var(--white)] text-left shadow-[var(--shadow-md)] active:scale-[0.99]"
                     >
-                      <div className={cn('h-16 w-16 shrink-0 bg-gradient-to-br', listTone.wash)} />
+                      <div className="relative h-16 w-16 shrink-0 overflow-hidden">
+                        {cover ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={cover}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div
+                            className={cn('h-full w-full bg-gradient-to-br', listTone.wash)}
+                          />
+                        )}
+                      </div>
                       <div className="min-w-0 flex-1 py-2 pr-3">
                         <p className="truncate text-[15px] font-semibold text-[var(--black)]">
                           {list.title}

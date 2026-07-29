@@ -36,6 +36,10 @@ export type UserPreferences = {
   theme: 'light' | 'dark' | 'system';
   locale: Locale;
   onboarded: boolean;
+  /** Optional body check-in for Home motivation (cm / kg stored). */
+  heightCm?: number;
+  weightKg?: number;
+  targetWeightKg?: number;
 };
 
 const PREFS_KEY = 'reply.prefs.v1';

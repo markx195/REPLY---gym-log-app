@@ -7,11 +7,13 @@ import { HScroll } from '@/components/ui/h-scroll';
 import {
   catalogStats,
   equipmentFilters,
-  muscleFilters,
   searchExercises,
   type CatalogExercise,
 } from '@/data/exercises/catalog';
 import { moods, toneStyles, workouts, type WorkoutMood } from '@/data/workouts';
+import { getExerciseById } from '@/data/exercises/catalog';
+import { muscleTiles } from '@/data/exercises/muscle-covers';
+import { workoutSessions } from '@/data/session';
 import {
   createCustomWorkout,
   type CustomWorkout,
@@ -57,6 +59,11 @@ export function DiscoveryScreen({
   const [visibleCount, setVisibleCount] = useState(PAGE);
   const [selected, setSelected] = useState<CatalogExercise | null>(null);
   const [pickerExercise, setPickerExercise] = useState<CatalogExercise | null>(null);
+  const [muscleSheetOpen, setMuscleSheetOpen] = useState(false);
+  const [equipmentSheetOpen, setEquipmentSheetOpen] = useState(false);
+  const [gearSheetOpen, setGearSheetOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [collectionId, setCollectionId] = useState<string | null>(null);
   const librarySentinelRef = useRef<HTMLDivElement | null>(null);
 
   const stats = catalogStats();
@@ -87,12 +94,63 @@ export function DiscoveryScreen({
   );
 
   const collections = [
-    { id: 'peak', title: locale === 'vi' ? 'Giờ cao điểm' : 'Gym peak hours', count: 4, tone: 'slate' as const },
-    { id: 'travel', title: locale === 'vi' ? 'Đi du lịch' : 'Travel ready', count: 3, tone: 'mist' as const },
-    { id: 'pump', title: locale === 'vi' ? 'Pump 45 phút' : '45-min pump', count: 5, tone: 'sky' as const },
+    {
+      id: 'peak',
+      title: locale === 'vi' ? 'Giờ cao điểm' : 'Gym peak hours',
+      blurb:
+        locale === 'vi'
+          ? 'Ít setup — hợp giờ đông người.'
+          : 'Low setup — peak-hour friendly.',
+      mood: 'Machines' as WorkoutMood,
+      tone: 'slate' as const,
+      image: getExerciseById('chest-press')?.image ?? null,
+    },
+    {
+      id: 'travel',
+      title: locale === 'vi' ? 'Đi du lịch' : 'Travel ready',
+      blurb:
+        locale === 'vi'
+          ? 'Thân người / tối giản — tập mọi nơi.'
+          : 'Bodyweight / minimal — train anywhere.',
+      mood: 'Travel' as WorkoutMood,
+      tone: 'mist' as const,
+      image: getExerciseById('Pushups')?.image ?? getExerciseById('squat')?.image ?? null,
+    },
+    {
+      id: 'pump',
+      title: locale === 'vi' ? 'Pump 45 phút' : '45-min pump',
+      blurb:
+        locale === 'vi'
+          ? 'Buổi ngắn, mật độ cao.'
+          : 'Short session, high density.',
+      mood: '45 min' as WorkoutMood,
+      tone: 'sky' as const,
+      image: getExerciseById('cable-fly')?.image ?? null,
+    },
   ];
 
+  const openCollection = collections.find((c) => c.id === collectionId) ?? null;
+  const collectionWorkouts = useMemo(() => {
+    if (!openCollection) return [];
+    return workouts.filter((w) => w.mood.includes(openCollection.mood));
+  }, [openCollection]);
+
+  const coverForWorkout = (workoutId: string) => {
+    const firstId = workoutSessions[workoutId]?.exercises[0]?.id;
+    return firstId ? getExerciseById(firstId)?.image ?? null : null;
+  };
+
+  const muscleTileItems = useMemo(() => muscleTiles(), []);
+
+  const selectMuscle = (next: string | null) => {
+    setMuscle(next);
+    setVisibleCount(PAGE);
+    setMuscleSheetOpen(false);
+    if (next) setLibraryOpen(true);
+  };
+
   useEffect(() => {
+    if (!libraryOpen) return;
     const node = librarySentinelRef.current;
     if (!node) return;
 
@@ -109,7 +167,7 @@ export function DiscoveryScreen({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [exerciseResult.total]);
+  }, [exerciseResult.total, libraryOpen]);
 
   const quickStartFromExercise = (exercise: CatalogExercise) => {
     setSelected(null);
@@ -133,21 +191,35 @@ export function DiscoveryScreen({
         aria-hidden
       />
 
-      <header className="relative overflow-hidden rounded-[var(--radius-2xl)] bg-gradient-to-br from-[var(--tone-sky-from)] via-[var(--tone-sky-via)] to-[var(--tone-sky-to)] p-5 shadow-[var(--shadow-md)]">
-        <div
-          className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[var(--white)]/50 blur-2xl"
-          aria-hidden
-        />
-        <p className="relative text-[var(--text-sm)] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
-          {t('discover')}
-        </p>
-        <h1 className="relative mt-2 text-[34px] font-semibold leading-[1.05] tracking-[var(--tracking-snug)] text-[var(--black)]">
-          {t('freshSessions')}
-        </h1>
-        <p className="relative mt-2 max-w-[20rem] text-[var(--text-md)] font-medium text-[var(--ink-soft)]">
-          {t('exercisesCount', { count: stats.total })} · {t('gearLabel')}:{' '}
-          {formatGearSummary(preferences.availableGearIds, locale)}
-        </p>
+      <header className="relative overflow-hidden rounded-[var(--radius-2xl)] shadow-[var(--shadow-lg)]">
+        {getExerciseById('Barbell_Bench_Press_-_Medium_Grip')?.image ||
+        getExerciseById('chest-press')?.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={
+              getExerciseById('Barbell_Bench_Press_-_Medium_Grip')?.image ??
+              getExerciseById('chest-press')?.image ??
+              ''
+            }
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-[var(--tone-sky-from)] via-[var(--tone-sky-via)] to-[var(--tone-sky-to)]" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/55 to-black/35" />
+        <div className="relative p-5 pb-6">
+          <p className="text-[var(--text-sm)] font-semibold uppercase tracking-[0.12em] text-white/70">
+            {t('discover')}
+          </p>
+          <h1 className="mt-2 text-[34px] font-semibold leading-[1.05] tracking-[var(--tracking-snug)] text-white">
+            {t('freshSessions')}
+          </h1>
+          <p className="mt-2 max-w-[20rem] text-[var(--text-md)] font-medium text-white/75">
+            {t('exercisesCount', { count: stats.total })} · {t('gearLabel')}:{' '}
+            {formatGearSummary(preferences.availableGearIds, locale)}
+          </p>
+        </div>
       </header>
 
       <SearchBar
@@ -181,37 +253,109 @@ export function DiscoveryScreen({
       </HScroll>
 
       <section className="space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
+              {t('trainByMuscle')}
+            </h2>
+            <p className="mt-0.5 text-[12px] font-medium text-[var(--ink-soft)]">
+              {t('pickAMuscle')}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMuscleSheetOpen(true)}
+            className="text-[13px] font-semibold text-[var(--accent)]"
+          >
+            {t('allMuscles')}
+          </button>
+        </div>
+        <HScroll contentClassName="gap-2.5">
+          <button
+            type="button"
+            onClick={() => selectMuscle(null)}
+            className={cn(
+              'relative h-[148px] w-[112px] shrink-0 overflow-hidden rounded-[22px] text-left shadow-[var(--shadow-md)] active:scale-[0.98]',
+              !muscle && 'ring-2 ring-[var(--accent)]',
+            )}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)] to-[var(--tone-sky-to)]" />
+            <div className="relative flex h-full flex-col justify-end p-3">
+              <p className="text-[14px] font-semibold leading-snug text-white">
+                {t('allMuscles')}
+              </p>
+            </div>
+          </button>
+          {muscleTileItems.map((tile) => {
+            const active = muscle === tile.id;
+            return (
+              <button
+                key={tile.id}
+                type="button"
+                onClick={() => selectMuscle(active ? null : tile.id)}
+                className={cn(
+                  'relative h-[148px] w-[112px] shrink-0 overflow-hidden rounded-[22px] text-left shadow-[var(--shadow-md)] active:scale-[0.98]',
+                  active && 'ring-2 ring-[var(--accent)]',
+                )}
+              >
+                {tile.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={tile.image}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-br from-[var(--tone-slate-from)] to-[var(--tone-slate-to)]" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+                <div className="relative flex h-full flex-col justify-end p-3">
+                  <p className="text-[14px] font-semibold leading-snug text-white">
+                    {muscleLabel(tile.id, locale)}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </HScroll>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
           {t('collections')}
         </h2>
         <HScroll>
           {collections.map((item) => {
             const tone = toneStyles[item.tone];
+            const count = workouts.filter((w) => w.mood.includes(item.mood)).length;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() =>
-                  setActiveMood(
-                    item.id === 'travel'
-                      ? 'Travel'
-                      : item.id === 'pump'
-                        ? '45 min'
-                        : 'All',
-                  )
-                }
-                className={cn(
-                  'relative h-[120px] w-[160px] shrink-0 overflow-hidden rounded-[var(--radius-xl)] p-4 text-left shadow-[var(--shadow-md)] active:scale-[0.98]',
-                  'bg-gradient-to-br',
-                  tone.wash,
-                )}
+                onClick={() => setCollectionId(item.id)}
+                className="relative h-[132px] w-[168px] shrink-0 overflow-hidden rounded-[var(--radius-xl)] text-left shadow-[var(--shadow-md)] active:scale-[0.98]"
               >
-                <p className="relative text-[16px] font-semibold leading-snug text-[var(--black)]">
-                  {item.title}
-                </p>
-                <p className="relative mt-auto pt-6 text-[12px] font-medium text-[var(--muted)]">
-                  {item.count} workouts
-                </p>
+                {item.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.image}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className={cn('absolute inset-0 bg-gradient-to-br', tone.wash)} />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
+                <div className="relative flex h-full flex-col justify-end p-4">
+                  <p className="text-[16px] font-semibold leading-snug text-white">
+                    {item.title}
+                  </p>
+                  <p className="mt-1 text-[12px] font-medium text-white/75">
+                    {count} {locale === 'vi' ? 'buổi' : 'workouts'}
+                  </p>
+                </div>
               </button>
             );
           })}
@@ -234,26 +378,47 @@ export function DiscoveryScreen({
           <HScroll>
             {filtered.map((workout) => {
               const saved = favoriteIds.includes(workout.id);
+              const cover = coverForWorkout(workout.id);
               return (
-                <div key={workout.id} className="w-[190px] shrink-0 space-y-2">
+                <div key={workout.id} className="w-[196px] shrink-0 space-y-2">
                   <button
                     type="button"
                     onClick={() => onStartWorkout(workout.id)}
-                    className={cn(
-                      'relative h-[120px] w-full overflow-hidden rounded-[var(--radius-xl)] p-4 text-left shadow-[var(--shadow-md)] active:scale-[0.98]',
-                      'bg-gradient-to-br',
-                      toneStyles[workout.tone].wash,
-                    )}
+                    className="relative h-[148px] w-full overflow-hidden rounded-[var(--radius-xl)] text-left shadow-[var(--shadow-md)] active:scale-[0.98]"
                   >
-                    <p className="text-[16px] font-semibold leading-snug text-[var(--black)]">
-                      {workout.title}
-                    </p>
-                    <p className="mt-1 text-[12px] font-medium text-[var(--muted)]">
-                      {workout.durationMin} min · {workout.focus}
-                    </p>
-                    <span className="absolute bottom-3 right-3 rounded-full bg-white/75 px-2.5 py-1 text-[11px] font-semibold text-[var(--black)]">
-                      {locale === 'vi' ? 'Bắt đầu' : 'Start'}
-                    </span>
+                    {cover ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={cover}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div
+                        className={cn(
+                          'absolute inset-0 bg-gradient-to-br',
+                          toneStyles[workout.tone].wash,
+                        )}
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/15" />
+                    <div className="relative flex h-full flex-col justify-between p-4">
+                      <span className="self-start rounded-full bg-[var(--accent)] px-2.5 py-1 text-[11px] font-semibold text-white">
+                        {workout.durationMin} min
+                      </span>
+                      <div>
+                        <p className="text-[16px] font-semibold leading-snug text-white">
+                          {workout.title}
+                        </p>
+                        <p className="mt-1 text-[12px] font-medium text-white/70">
+                          {workout.focus}
+                        </p>
+                        <span className="mt-2.5 inline-flex rounded-full bg-[var(--accent)] px-3 py-1 text-[11px] font-semibold text-white">
+                          {locale === 'vi' ? 'Bắt đầu' : 'Start'}
+                        </span>
+                      </div>
+                    </div>
                   </button>
                   <button
                     type="button"
@@ -273,148 +438,183 @@ export function DiscoveryScreen({
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
-            {t('exerciseLibrary')}
-          </h2>
-          <span className="text-[var(--text-sm)] font-medium text-[var(--ink-soft)]">
-            {exerciseResult.total}
-          </span>
-        </div>
+        <h2 className="text-[var(--text-xl)] font-semibold text-[var(--black)]">
+          {t('exerciseLibrary')}
+        </h2>
+        <button
+          type="button"
+          onClick={() => {
+            setVisibleCount(PAGE);
+            setLibraryOpen(true);
+          }}
+          className="flex w-full items-center gap-4 overflow-hidden rounded-[var(--radius-2xl)] bg-[var(--white)] p-4 text-left shadow-[var(--shadow-md)] active:scale-[0.99]"
+        >
+          <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[18px]">
+            {getExerciseById('Barbell_Bench_Press_-_Medium_Grip')?.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={getExerciseById('Barbell_Bench_Press_-_Medium_Grip')!.image!}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-[var(--accent)] to-[var(--tone-sky-to)]" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[16px] font-semibold text-[var(--black)]">
+              {t('browseLibrary')}
+            </p>
+            <p className="mt-0.5 text-[12px] font-medium text-[var(--ink-soft)]">
+              {t('openLibraryHint')}
+            </p>
+            <p className="mt-1 text-[12px] font-semibold text-[var(--accent)]">
+              {exerciseResult.total} · {muscle ? muscleLabel(muscle, locale) : t('allMuscles')}
+              {equipment ? ` · ${equipment}` : ''}
+            </p>
+          </div>
+          <span className="text-[18px] font-semibold text-[var(--muted)]">›</span>
+        </button>
+      </section>
 
-        <div className="flex flex-wrap gap-2">
+      <BottomSheet
+        open={Boolean(openCollection)}
+        onClose={() => setCollectionId(null)}
+        title={openCollection?.title ?? t('collections')}
+        size="tall"
+      >
+        {openCollection ? (
+          <div className="space-y-4">
+            <p className="text-[14px] font-medium text-[var(--ink-soft)]">
+              {openCollection.blurb}
+            </p>
+            <ul className="space-y-2">
+              {collectionWorkouts.map((workout) => {
+                const cover = coverForWorkout(workout.id);
+                return (
+                  <li key={workout.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollectionId(null);
+                        onStartWorkout(workout.id);
+                      }}
+                      className="flex w-full items-center gap-3 overflow-hidden rounded-[var(--radius-xl)] bg-[var(--surface)] text-left active:scale-[0.985]"
+                    >
+                      <div className="relative h-[72px] w-[72px] shrink-0 overflow-hidden">
+                        {cover ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={cover}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div
+                            className={cn(
+                              'h-full w-full bg-gradient-to-br',
+                              toneStyles[workout.tone].wash,
+                            )}
+                          />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 py-3 pr-3">
+                        <p className="truncate text-[15px] font-semibold text-[var(--black)]">
+                          {workout.title}
+                        </p>
+                        <p className="mt-0.5 text-[12px] font-medium text-[var(--ink-soft)]">
+                          {workout.durationMin} min · {workout.focus}
+                        </p>
+                      </div>
+                      <span className="shrink-0 pr-4 text-[13px] font-semibold text-[var(--accent)]">
+                        {locale === 'vi' ? 'Bắt đầu' : 'Start'}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {collectionWorkouts.length === 0 ? (
+              <p className="py-6 text-center text-[14px] text-[var(--muted)]">
+                {t('nothingHere')}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </BottomSheet>
+
+      <BottomSheet
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        title={t('exerciseLibrary')}
+        size="tall"
+      >
+        <div className="mb-4 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => {
-              setOnlyMyGear(true);
-              setVisibleCount(PAGE);
-            }}
+            onClick={() => setGearSheetOpen(true)}
             className={cn(
               'rounded-full px-3.5 py-2 text-[13px] font-semibold',
               onlyMyGear
                 ? 'bg-[var(--accent)] text-white'
-                : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
+                : 'bg-[var(--surface)] text-[var(--black)]',
             )}
           >
-            {t('myGear')}
+            {onlyMyGear ? t('myGear') : t('allExercises')} ▾
           </button>
           <button
             type="button"
-            onClick={() => {
-              setOnlyMyGear(false);
-              setVisibleCount(PAGE);
-            }}
+            onClick={() => setMuscleSheetOpen(true)}
             className={cn(
               'rounded-full px-3.5 py-2 text-[13px] font-semibold',
-              !onlyMyGear
+              muscle
                 ? 'bg-[var(--accent)] text-white'
-                : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
+                : 'bg-[var(--surface)] text-[var(--black)]',
             )}
           >
-            {t('allExercises')}
+            {muscle ? muscleLabel(muscle, locale) : t('allMuscles')} ▾
           </button>
-          {onEditGear ? (
-            <button
-              type="button"
-              onClick={onEditGear}
-              className="rounded-full bg-[var(--white)] px-3.5 py-2 text-[13px] font-semibold text-[var(--accent)] shadow-[var(--shadow-sm)]"
-            >
-              {t('editGear')}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => setEquipmentSheetOpen(true)}
+            className={cn(
+              'rounded-full px-3.5 py-2 text-[13px] font-semibold capitalize',
+              equipment
+                ? 'bg-[var(--accent)] text-white'
+                : 'bg-[var(--surface)] text-[var(--black)]',
+            )}
+          >
+            {equipment ?? t('anyType')} ▾
+          </button>
         </div>
 
-        {/* Muscle chips — wrap so clicks always work */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setMuscle(null);
-              setVisibleCount(PAGE);
-            }}
-            className={cn(
-              'rounded-full px-3.5 py-2 text-[13px] font-semibold',
-              !muscle
-                ? 'bg-[var(--accent)] text-white'
-                : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
-            )}
-          >
-            {t('allMuscles')}
-          </button>
-          {muscleFilters.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                setMuscle(item === muscle ? null : item);
-                setVisibleCount(PAGE);
-              }}
-              className={cn(
-                'rounded-full px-3.5 py-2 text-[13px] font-semibold',
-                muscle === item
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
-              )}
-            >
-              {muscleLabel(item, locale)}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setEquipment(null);
-              setVisibleCount(PAGE);
-            }}
-            className={cn(
-              'rounded-full px-3.5 py-2 text-[13px] font-semibold',
-              !equipment
-                ? 'bg-[var(--accent)] text-white'
-                : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
-            )}
-          >
-            {t('anyType')}
-          </button>
-          {equipmentFilters.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                setEquipment(item === equipment ? null : item);
-                setVisibleCount(PAGE);
-              }}
-              className={cn(
-                'rounded-full px-3.5 py-2 text-[13px] font-semibold capitalize',
-                equipment === item
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'bg-[var(--white)] text-[var(--black)] shadow-[var(--shadow-sm)]',
-              )}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
+        <p className="mb-3 text-[12px] font-medium text-[var(--ink-soft)]">
+          {exerciseResult.total}{' '}
+          {locale === 'vi' ? 'bài khớp bộ lọc' : 'matches'}
+        </p>
 
         <ul className="space-y-2">
           {exerciseResult.items.map((exercise) => (
             <li key={exercise.id}>
               <button
                 type="button"
-                onClick={() => setSelected(exercise)}
-                className="flex w-full items-center gap-3 rounded-[var(--radius-xl)] bg-[var(--white)] p-3 text-left shadow-[var(--shadow-md)] active:scale-[0.985]"
+                onClick={() => {
+                  setLibraryOpen(false);
+                  setSelected(exercise);
+                }}
+                className="flex w-full items-center gap-3 rounded-[var(--radius-xl)] bg-[var(--surface)] p-3 text-left active:scale-[0.985]"
               >
                 {exercise.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={exercise.image}
                     alt=""
-                    className="h-14 w-14 shrink-0 rounded-[14px] object-cover bg-[var(--surface)]"
+                    className="h-14 w-14 shrink-0 rounded-[14px] object-cover bg-[var(--white)]"
                     loading="lazy"
                   />
                 ) : (
-                  <div className="h-14 w-14 shrink-0 rounded-[14px] bg-[var(--surface)]" />
+                  <div className="h-14 w-14 shrink-0 rounded-[14px] bg-[var(--white)]" />
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-semibold text-[var(--black)]">
@@ -438,12 +638,12 @@ export function DiscoveryScreen({
         {visibleCount < exerciseResult.total ? (
           <div
             ref={librarySentinelRef}
-            className="py-2 text-center text-[12px] font-medium text-[var(--muted-light)]"
+            className="py-3 text-center text-[12px] font-medium text-[var(--muted-light)]"
           >
             {locale === 'vi' ? 'Kéo xuống để tải thêm…' : 'Scroll to load more…'}
           </div>
         ) : null}
-      </section>
+      </BottomSheet>
 
       <BottomSheet
         open={Boolean(selected)}
@@ -570,6 +770,172 @@ export function DiscoveryScreen({
             )}
           </div>
         ) : null}
+      </BottomSheet>
+
+      <BottomSheet
+        open={gearSheetOpen}
+        onClose={() => setGearSheetOpen(false)}
+        title={locale === 'vi' ? 'Lọc theo đồ tập' : 'Filter by gear'}
+      >
+        <ul className="space-y-2">
+          {(
+            [
+              { id: 'my', label: t('myGear'), value: true },
+              { id: 'all', label: t('allExercises'), value: false },
+            ] as const
+          ).map((opt) => {
+            const active = onlyMyGear === opt.value;
+            return (
+              <li key={opt.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOnlyMyGear(opt.value);
+                    setVisibleCount(PAGE);
+                    setGearSheetOpen(false);
+                  }}
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-[var(--radius-xl)] px-4 py-3.5 text-left shadow-[var(--shadow-sm)] active:scale-[0.985]',
+                    active
+                      ? 'bg-[var(--accent-mist)] ring-2 ring-[var(--accent)]/25'
+                      : 'bg-[var(--surface)]',
+                  )}
+                >
+                  <span className="text-[15px] font-semibold text-[var(--black)]">
+                    {opt.label}
+                  </span>
+                  {active ? (
+                    <span className="text-[13px] font-semibold text-[var(--accent)]">✓</span>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {onEditGear ? (
+          <button
+            type="button"
+            onClick={() => {
+              setGearSheetOpen(false);
+              onEditGear();
+            }}
+            className="mt-4 w-full rounded-[var(--radius-xl)] bg-[var(--white)] px-4 py-3.5 text-center text-[15px] font-semibold text-[var(--accent)] shadow-[var(--shadow-sm)]"
+          >
+            {t('editGear')}
+          </button>
+        ) : null}
+      </BottomSheet>
+
+      <BottomSheet
+        open={muscleSheetOpen}
+        onClose={() => setMuscleSheetOpen(false)}
+        title={locale === 'vi' ? 'Nhóm cơ' : 'Muscle group'}
+      >
+        <div className="grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={() => selectMuscle(null)}
+            className={cn(
+              'relative h-[112px] overflow-hidden rounded-[20px] text-left shadow-[var(--shadow-sm)] active:scale-[0.98]',
+              !muscle && 'ring-2 ring-[var(--accent)]',
+            )}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)] to-[var(--tone-sky-to)]" />
+            <div className="relative flex h-full flex-col justify-end p-3">
+              <p className="text-[14px] font-semibold text-white">{t('allMuscles')}</p>
+            </div>
+          </button>
+          {muscleTileItems.map((tile) => {
+            const active = muscle === tile.id;
+            return (
+              <button
+                key={tile.id}
+                type="button"
+                onClick={() => selectMuscle(tile.id)}
+                className={cn(
+                  'relative h-[112px] overflow-hidden rounded-[20px] text-left shadow-[var(--shadow-sm)] active:scale-[0.98]',
+                  active && 'ring-2 ring-[var(--accent)]',
+                )}
+              >
+                {tile.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={tile.image}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-[var(--surface)]" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+                <div className="relative flex h-full flex-col justify-end p-3">
+                  <p className="text-[14px] font-semibold text-white">
+                    {muscleLabel(tile.id, locale)}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </BottomSheet>
+
+      <BottomSheet
+        open={equipmentSheetOpen}
+        onClose={() => setEquipmentSheetOpen(false)}
+        title={locale === 'vi' ? 'Loại dụng cụ' : 'Equipment type'}
+      >
+        <ul className="space-y-2">
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                setEquipment(null);
+                setVisibleCount(PAGE);
+                setEquipmentSheetOpen(false);
+              }}
+              className={cn(
+                'flex w-full items-center justify-between rounded-[var(--radius-xl)] px-4 py-3.5 text-left shadow-[var(--shadow-sm)] active:scale-[0.985]',
+                !equipment
+                  ? 'bg-[var(--accent-mist)] ring-2 ring-[var(--accent)]/25'
+                  : 'bg-[var(--surface)]',
+              )}
+            >
+              <span className="text-[15px] font-semibold text-[var(--black)]">
+                {t('anyType')}
+              </span>
+              {!equipment ? (
+                <span className="text-[13px] font-semibold text-[var(--accent)]">✓</span>
+              ) : null}
+            </button>
+          </li>
+          {equipmentFilters.map((item) => {
+            const active = equipment === item;
+            return (
+              <li key={item}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEquipment(item);
+                    setVisibleCount(PAGE);
+                    setEquipmentSheetOpen(false);
+                  }}
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-[var(--radius-xl)] px-4 py-3.5 text-left capitalize shadow-[var(--shadow-sm)] active:scale-[0.985]',
+                    active
+                      ? 'bg-[var(--accent-mist)] ring-2 ring-[var(--accent)]/25'
+                      : 'bg-[var(--surface)]',
+                  )}
+                >
+                  <span className="text-[15px] font-semibold text-[var(--black)]">{item}</span>
+                  {active ? (
+                    <span className="text-[13px] font-semibold text-[var(--accent)]">✓</span>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </BottomSheet>
     </div>
   );

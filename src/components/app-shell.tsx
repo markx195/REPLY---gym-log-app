@@ -1005,6 +1005,7 @@ export function AppShell() {
             streak={weeklyStats.streak}
             history={history}
             preferences={prefs!}
+            onUpdatePrefs={updatePrefs}
             customWorkouts={customWorkouts}
             onSaveCustomWorkout={saveCustomList}
             onDeleteCustomWorkout={removeCustomList}
