@@ -387,25 +387,63 @@ export function ActiveWorkoutScreen({
           </div>
 
           {/* Set progress rail */}
-          <div className="flex gap-1.5 px-5 pb-4">
-            {Array.from({ length: exercise.targetSets }).map((_, index) => {
-              const logged = exercise.sets[index];
-              const isCurrent = index === completedSets && !setComplete;
-              return (
-                <div
-                  key={index}
-                  className={cn(
-                    'h-2 flex-1 rounded-full transition-all duration-200',
-                    logged
-                      ? 'bg-[var(--accent)]'
-                      : isCurrent
-                        ? 'bg-[var(--accent)]/35 ring-2 ring-[var(--accent)]/30 ring-offset-1'
-                        : 'bg-[var(--surface)]',
-                  )}
-                  title={logged ? `${logged.weight}×${logged.reps}` : `Set ${index + 1}`}
-                />
-              );
-            })}
+          <div className="flex items-center gap-1.5 px-5 pb-4">
+            <button
+              type="button"
+              aria-label={t('removeSet')}
+              disabled={exercise.targetSets <= Math.max(1, completedSets)}
+              onClick={() => {
+                setSession((prev) => {
+                  const updated = { ...prev, exercises: [...prev.exercises] };
+                  updated.exercises[exerciseIndex] = {
+                    ...updated.exercises[exerciseIndex],
+                    targetSets: updated.exercises[exerciseIndex].targetSets - 1,
+                  };
+                  return updated;
+                });
+              }}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--surface)] text-[13px] font-bold text-[var(--ink-soft)] disabled:opacity-30"
+            >
+              −
+            </button>
+            <div className="flex flex-1 gap-1.5">
+              {Array.from({ length: exercise.targetSets }).map((_, index) => {
+                const logged = exercise.sets[index];
+                const isCurrent = index === completedSets && !setComplete;
+                return (
+                  <div
+                    key={index}
+                    className={cn(
+                      'h-2 flex-1 rounded-full transition-all duration-200',
+                      logged
+                        ? 'bg-[var(--accent)]'
+                        : isCurrent
+                          ? 'bg-[var(--accent)]/35 ring-2 ring-[var(--accent)]/30 ring-offset-1'
+                          : 'bg-[var(--surface)]',
+                    )}
+                    title={logged ? `${logged.weight}×${logged.reps}` : `Set ${index + 1}`}
+                  />
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              aria-label={t('addSet')}
+              disabled={exercise.targetSets >= 10}
+              onClick={() => {
+                setSession((prev) => {
+                  const updated = { ...prev, exercises: [...prev.exercises] };
+                  updated.exercises[exerciseIndex] = {
+                    ...updated.exercises[exerciseIndex],
+                    targetSets: updated.exercises[exerciseIndex].targetSets + 1,
+                  };
+                  return updated;
+                });
+              }}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--surface)] text-[13px] font-bold text-[var(--ink-soft)] disabled:opacity-30"
+            >
+              +
+            </button>
           </div>
 
           <div className="flex items-center gap-2 border-t border-[var(--border)] px-5 py-3">
