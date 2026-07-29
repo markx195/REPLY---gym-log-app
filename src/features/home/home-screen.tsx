@@ -177,13 +177,26 @@ export function HomeScreen({
               REPLY
             </h1>
           </div>
-          <div className="mb-1 rounded-[var(--radius-lg)] bg-[var(--white)] px-3.5 py-2.5 text-center shadow-[var(--shadow-md)]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--ink-soft)]">
+          <div className="mb-1 min-w-[72px] rounded-[18px] border border-[var(--border)] bg-[var(--white)] px-3.5 py-2.5 text-center shadow-[var(--shadow-md)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
               {t('streak')}
             </p>
-            <p className="text-[22px] font-semibold tabular-nums text-[var(--accent)]">
+            <p className="mt-0.5 text-[24px] font-semibold leading-none tabular-nums text-[var(--accent)]">
               {streak}
             </p>
+            <div className="mt-2 flex items-center justify-center gap-1" aria-hidden>
+              {Array.from({ length: 5 }).map((_, index) => (
+                <span
+                  key={index}
+                  className={cn(
+                    'h-1.5 w-1.5 rounded-full',
+                    index < Math.min(streak, 5)
+                      ? 'bg-[var(--accent)]'
+                      : 'bg-[var(--surface)] ring-1 ring-[var(--border)]',
+                  )}
+                />
+              ))}
+            </div>
           </div>
         </header>
 
@@ -407,29 +420,32 @@ export function HomeScreen({
                         {list.exerciseIds.length} · {estimateCustomDurationMin(list)} {t('min')}
                       </p>
                     </div>
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
+                      className="shrink-0 px-3"
                       onClick={() => onStartWorkout(toRecommendableId(list.id))}
-                      className="shrink-0 text-[13px] font-semibold text-[var(--accent)]"
                     >
                       {t('start')}
-                    </button>
+                    </Button>
                   </div>
-                  <div className="mt-2 flex gap-3">
-                    <button
+                  <div className="mt-2 flex gap-2">
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="secondary"
                       onClick={() => openEdit(list)}
-                      className="text-[12px] font-semibold text-[var(--ink-soft)]"
                     >
                       {t('edit')}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="text-red-500"
                       onClick={() => onDeleteCustomWorkout(list.id)}
-                      className="text-[12px] font-semibold text-red-500"
                     >
                       {t('delete')}
-                    </button>
+                    </Button>
                   </div>
                 </li>
               ))}

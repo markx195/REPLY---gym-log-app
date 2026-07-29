@@ -77,7 +77,7 @@ export function BodyMotivationCard({
   };
 
   return (
-    <section className="overflow-hidden rounded-[var(--radius-2xl)] bg-[var(--white)] p-4 shadow-[var(--shadow-md)]">
+    <section className="overflow-hidden rounded-[var(--radius-2xl)] border border-[var(--border)] bg-[var(--white)] p-4 shadow-[var(--shadow-md)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
@@ -183,35 +183,51 @@ export function BodyMotivationCard({
             </p>
           </div>
 
-          <div className="relative pt-1">
-            <div className="relative h-3 overflow-hidden rounded-full bg-[var(--surface)]">
-              {/* healthy band ~18.5–25 on 15–35 scale → (18.5-15)/20=0.175 to (25-15)/20=0.5 */}
+          {/* BMI scale: 15–35. Zones: under <18.5, healthy 18.5–25, over 25–30, high >30 */}
+          <div className="relative px-1 pt-2 pb-1">
+            <div className="relative h-3.5">
+              <div className="absolute inset-x-0 top-1/2 h-3.5 -translate-y-1/2 overflow-hidden rounded-full">
+                <div className="flex h-full w-full">
+                  <div className="h-full bg-[#5b9cff]" style={{ width: '17.5%' }} />
+                  <div className="h-full bg-[#34c759]" style={{ width: '32.5%' }} />
+                  <div className="h-full bg-[#ff9f0a]" style={{ width: '25%' }} />
+                  <div className="h-full bg-[#ff453a]" style={{ width: '25%' }} />
+                </div>
+              </div>
               <div
-                className="absolute inset-y-0 bg-[var(--accent)]/25"
-                style={{ left: '17.5%', width: '32.5%' }}
-              />
-              <div
-                className={cn(
-                  'absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[var(--shadow-sm)]',
-                  zone === 'healthy' ? 'bg-[var(--accent)]' : 'bg-[#3b9aff]',
-                )}
+                className="absolute top-1/2 z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-[var(--white)] bg-[var(--black)] shadow-[0_4px_12px_rgba(0,0,0,0.35)]"
                 style={{ left: `${track * 100}%` }}
-              />
+                aria-hidden
+              >
+                <span
+                  className={cn(
+                    'absolute inset-[3px] rounded-full',
+                    zone === 'under' && 'bg-[#5b9cff]',
+                    zone === 'healthy' && 'bg-[#34c759]',
+                    zone === 'over' && 'bg-[#ff9f0a]',
+                    zone === 'high' && 'bg-[#ff453a]',
+                  )}
+                />
+              </div>
             </div>
-            <div className="mt-1.5 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+            <div className="mt-2.5 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
               <span>15</span>
-              <span>{locale === 'vi' ? 'Cân bằng' : 'Balance'}</span>
+              <span className="text-[#34c759]">
+                {locale === 'vi' ? 'An toàn' : 'Safe'}
+              </span>
               <span>35</span>
+            </div>
+            <div className="mt-1 grid grid-cols-4 gap-1 text-center text-[9px] font-semibold uppercase tracking-wide">
+              <span className="text-[#5b9cff]">{locale === 'vi' ? 'Thiếu' : 'Under'}</span>
+              <span className="text-[#34c759]">{locale === 'vi' ? 'Ổn' : 'OK'}</span>
+              <span className="text-[#ff9f0a]">{locale === 'vi' ? 'Cao' : 'Over'}</span>
+              <span className="text-[#ff453a]">{locale === 'vi' ? 'Rủi ro' : 'High'}</span>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onStartToday}
-            className="w-full rounded-full bg-[var(--accent-mist)] px-4 py-2.5 text-[13px] font-semibold text-[var(--accent)] active:scale-[0.99]"
-          >
-            {locale === 'vi' ? 'Tập hôm nay để giữ đà →' : 'Train today to keep momentum →'}
-          </button>
+          <Button fullWidth size="md" onClick={onStartToday}>
+            {locale === 'vi' ? 'Tập hôm nay để giữ đà' : 'Train today to keep momentum'}
+          </Button>
         </div>
       ) : null}
     </section>

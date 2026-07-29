@@ -385,34 +385,22 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                 ? 'Tiếp tục'
                 : 'Continue'}
           </Button>
-          <div className="flex items-center justify-between gap-3 px-1">
+          <div className="flex items-center justify-between gap-2">
             {stepIndex > 0 ? (
-              <button
-                type="button"
-                onClick={back}
-                className="py-2 text-[14px] font-semibold text-[var(--ink-soft)]"
-              >
-                {locale === 'vi' ? '← Quay lại' : '← Back'}
-              </button>
+              <Button variant="secondary" size="md" onClick={back} className="min-w-[108px]">
+                {locale === 'vi' ? 'Quay lại' : 'Back'}
+              </Button>
             ) : (
-              <span />
+              <span className="min-w-[108px]" />
             )}
             {!isLast ? (
-              <button
-                type="button"
-                onClick={skipStep}
-                className="py-2 text-[14px] font-semibold text-[var(--ink-soft)]"
-              >
-                {locale === 'vi' ? 'Bỏ qua bước này' : 'Skip this step'}
-              </button>
+              <Button variant="secondary" size="md" onClick={skipStep} className="min-w-[108px]">
+                {locale === 'vi' ? 'Bỏ qua' : 'Skip'}
+              </Button>
             ) : (
-              <button
-                type="button"
-                onClick={skipAll}
-                className="py-2 text-[14px] font-semibold text-[var(--ink-soft)]"
-              >
-                {locale === 'vi' ? 'Dùng mặc định nhanh' : 'Use quick defaults'}
-              </button>
+              <Button variant="secondary" size="md" onClick={skipAll} className="min-w-[108px]">
+                {locale === 'vi' ? 'Mặc định' : 'Defaults'}
+              </Button>
             )}
           </div>
         </div>

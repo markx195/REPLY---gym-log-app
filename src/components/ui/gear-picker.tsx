@@ -73,20 +73,22 @@ export function GearPicker({ selectedIds, onChange, locale }: GearPickerProps) {
                     type="button"
                     onClick={() => toggle(item.id)}
                     className={cn(
-                      'overflow-hidden rounded-[18px] text-left shadow-[var(--shadow-sm)] transition-all active:scale-[0.98]',
+                      'rounded-[18px] border-2 p-1 text-left shadow-[var(--shadow-sm)] transition-all active:scale-[0.98]',
                       selected
-                        ? 'ring-2 ring-[var(--accent)] bg-[var(--accent-mist)]'
-                        : 'bg-[var(--white)]',
+                        ? 'border-[var(--accent)] bg-[var(--accent-mist)]'
+                        : 'border-transparent bg-[var(--white)]',
                     )}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.image}
-                      alt=""
-                      className="h-20 w-full object-cover bg-[var(--surface)]"
-                      loading="lazy"
-                    />
-                    <div className="px-2 py-2">
+                    <div className="overflow-hidden rounded-[12px]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.image}
+                        alt=""
+                        className="h-[72px] w-full object-cover bg-[var(--surface)]"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="px-1.5 py-2">
                       <p className="line-clamp-2 text-[12px] font-semibold leading-snug text-[var(--black)]">
                         {item.name[locale]}
                       </p>
