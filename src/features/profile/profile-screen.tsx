@@ -47,6 +47,7 @@ type ProfileScreenProps = {
   onClearHistory: () => void;
   onLoadSampleHistory: () => void;
   onSignOut: () => void;
+  onUpdateUserName: (name: string) => void;
   history: HistorySession[];
   onOpenHistory: (sessionId: string) => void;
   onExportData: () => void;
@@ -71,6 +72,7 @@ export function ProfileScreen({
   onClearHistory,
   onLoadSampleHistory,
   onSignOut,
+  onUpdateUserName,
   history,
   onOpenHistory,
   onExportData,
@@ -205,6 +207,8 @@ export function ProfileScreen({
   const [durationSheet, setDurationSheet] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [reminderSheet, setReminderSheet] = useState(false);
+  const [nicknameSheet, setNicknameSheet] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState(user.name);
   const [importBusy, setImportBusy] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
   const [importPreview, setImportPreview] = useState<{
@@ -216,6 +220,7 @@ export function ProfileScreen({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initial = user.name.trim().charAt(0).toUpperCase() || 'R';
+  const shortUserId = user.id.length > 12 ? `${user.id.slice(0, 6)}...${user.id.slice(-4)}` : user.id;
   const roleLabel = user.mode === 'guest'
     ? l('Khách', 'Guest athlete')
     : cloudSyncEnabled
@@ -237,6 +242,20 @@ export function ProfileScreen({
   };
 
   const settings = [
+    {
+      id: 'nickname',
+      label: l('Nickname', 'Nickname'),
+      value: user.name,
+      action: () => {
+        setNicknameDraft(user.name);
+        setNicknameSheet(true);
+      },
+    },
+    {
+      id: 'account-id',
+      label: l('User ID', 'User ID'),
+      value: shortUserId,
+    },
     {
       id: 'language',
       label: t('language'),
@@ -349,6 +368,9 @@ export function ProfileScreen({
                 {user.name}
               </h1>
               <p className="mt-1 truncate text-[14px] text-white/60">{emailLabel}</p>
+              <p className="mt-1 truncate text-[12px] font-semibold text-white/45">
+                ID: {shortUserId}
+              </p>
             </div>
           </div>
 
@@ -1096,6 +1118,34 @@ export function ProfileScreen({
             allowDecimal={false}
           />
           <Button fullWidth size="lg" onClick={() => { onUpdatePrefs({ weeklyGoal: goalDraft }); setGoalSheet(false); }}>
+            {t('save')}
+          </Button>
+        </div>
+      </BottomSheet>
+
+      <BottomSheet open={nicknameSheet} onClose={() => setNicknameSheet(false)} title={l('Nickname', 'Nickname')}>
+        <div className="space-y-4">
+          <input
+            type="text"
+            value={nicknameDraft}
+            maxLength={24}
+            onChange={(event) => setNicknameDraft(event.target.value)}
+            placeholder={l('Nhập nickname của bạn', 'Enter your nickname')}
+            className="h-[var(--control-h)] w-full rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--white)] px-4 text-[16px] text-[var(--black)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]"
+          />
+          <p className="text-[12px] text-[var(--muted)]">
+            {l('Nickname sẽ hiển thị trên hồ sơ tài khoản.', 'Nickname will be shown on your profile.')}
+          </p>
+          <Button
+            fullWidth
+            size="lg"
+            onClick={() => {
+              const nextName = nicknameDraft.trim().slice(0, 24);
+              if (!nextName) return;
+              onUpdateUserName(nextName);
+              setNicknameSheet(false);
+            }}
+          >
             {t('save')}
           </Button>
         </div>

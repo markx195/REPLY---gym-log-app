@@ -8,8 +8,6 @@ function modeFromUser(user: User): AuthMode {
     user.identities?.[0]?.provider ??
     'email';
   if (provider === 'google') return 'google';
-  if (provider === 'apple') return 'apple';
-  if (provider === 'facebook') return 'facebook';
   return 'email';
 }
 
@@ -42,21 +40,7 @@ export async function getSupabaseSessionUser(): Promise<AuthUser | null> {
   return authUserFromSupabase(data.user);
 }
 
-export async function signInWithEmailMagicLink(email: string) {
-  const supabase = getSupabaseBrowserClient();
-  if (!supabase) throw new Error('Supabase is not configured');
-  const redirectTo =
-    typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
-  const { error } = await supabase.auth.signInWithOtp({
-    email: email.trim().toLowerCase(),
-    options: { emailRedirectTo: redirectTo },
-  });
-  if (error) throw error;
-}
-
-export async function signInWithOAuthProvider(
-  provider: 'google' | 'apple' | 'facebook',
-) {
+export async function signInWithOAuthProvider(provider: 'google') {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) throw new Error('Supabase is not configured');
   const redirectTo =

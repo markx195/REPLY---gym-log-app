@@ -15,7 +15,6 @@ import type { HistorySession } from '@/data/history';
 import { createSession, type WorkoutSession } from '@/data/session';
 import {
   clearAuthUser,
-  createEmailUser,
   createGuestUser,
   createSocialUser,
   delay,
@@ -90,7 +89,6 @@ import {
   authUserFromSupabase,
   getSupabaseSessionUser,
   isSupabaseConfigured,
-  signInWithEmailMagicLink,
   signInWithOAuthProvider,
   signOutSupabase,
 } from '@/lib/supabase/auth';
@@ -129,7 +127,6 @@ export function AppShell() {
   const [draft, setDraft] = useState<WorkoutDraft | null>(null);
   const [reminder, setReminder] = useState<ReminderSettings>(defaultReminder);
   const [reminderOpen, setReminderOpen] = useState(false);
-  const [emailHint, setEmailHint] = useState<string | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const cloudEnabled = isSupabaseConfigured();
@@ -310,9 +307,7 @@ export function AppShell() {
             if (
               !nextUser.id.startsWith('guest_') &&
               !nextUser.id.startsWith('u_') &&
-              !nextUser.id.startsWith('google_') &&
-              !nextUser.id.startsWith('apple_') &&
-              !nextUser.id.startsWith('facebook_')
+              !nextUser.id.startsWith('google_')
             ) {
               clearAuthUser();
               nextUser = null;
@@ -381,7 +376,6 @@ export function AppShell() {
         const cloudUser = authUserFromSupabase(session.user);
         saveAuthUser(cloudUser);
         setUser(cloudUser);
-        setEmailHint(null);
         setGate((current) => {
           if (current !== 'auth') return current;
           return loadPreferences().onboarded ? 'ready' : 'onboarding';
@@ -391,7 +385,6 @@ export function AppShell() {
       if (event === 'SIGNED_OUT') {
         clearAuthUser();
         setUser(null);
-        setEmailHint(null);
         setGate('auth');
       }
     });
@@ -489,6 +482,20 @@ export function AppShell() {
     });
   };
 
+  const updateUserName = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setUser((current) => {
+      if (!current) return current;
+      const next = { ...current, name: trimmed };
+      saveAuthUser(next);
+      if (next.mode !== 'guest') {
+        void upsertProfile(next);
+      }
+      return next;
+    });
+  };
+
   const enterApp = async (nextUser: AuthUser, message: string) => {
     setLoadingMessage(message);
     setGate('entering');
@@ -558,31 +565,17 @@ export function AppShell() {
     }
   };
 
-  const loginWithEmail = async (email: string) => {
+  const loginWithGoogle = async () => {
     if (cloudEnabled) {
-      await signInWithEmailMagicLink(email);
-      setEmailHint('Magic link sent — open it on this device to finish sign-in.');
+      await signInWithOAuthProvider('google');
       return;
     }
-    await enterApp(createEmailUser(email), 'Signing you in…');
-  };
-
-  const loginWithSocial = async (provider: 'google' | 'apple' | 'facebook') => {
-    if (cloudEnabled) {
-      await signInWithOAuthProvider(provider);
-      return;
-    }
-    const labels: Record<string, string> = {
-      google: 'Google',
-      apple: 'Apple',
-      facebook: 'Facebook',
-    };
     const mockUser = createSocialUser(
-      provider,
-      `${labels[provider]} User`,
-      `user@${provider}.com`,
+      'google',
+      'Google User',
+      'user@google.com',
     );
-    await enterApp(mockUser, `Connecting ${labels[provider]}…`);
+    await enterApp(mockUser, 'Connecting Google…');
   };
 
   const loginAsGuest = async () => {
@@ -599,7 +592,6 @@ export function AppShell() {
     void signOutSupabase();
     clearAuthUser();
     setUser(null);
-    setEmailHint(null);
     setSyncMessage(null);
     setView({ type: 'tabs', tab: 'home' });
     setGate('auth');
@@ -920,11 +912,9 @@ export function AppShell() {
     return (
       <div className="relative mx-auto w-full max-w-md">
         <LoginScreen
-          onLoginEmail={loginWithEmail}
-          onLoginSocial={loginWithSocial}
+          onLoginGoogle={loginWithGoogle}
           onLoginGuest={loginAsGuest}
           cloudEnabled={cloudEnabled}
-          emailHint={emailHint}
         />
       </div>
     );
@@ -1038,6 +1028,7 @@ export function AppShell() {
             onClearHistory={resetHistory}
             onLoadSampleHistory={loadSampleHistory}
             onSignOut={signOut}
+            onUpdateUserName={updateUserName}
             history={history}
             onOpenHistory={(sessionId) => setView({ type: 'history', sessionId })}
             onExportData={exportData}

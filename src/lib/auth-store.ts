@@ -13,17 +13,6 @@ function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
-function nameFromEmail(email: string) {
-  const local = email.split('@')[0] ?? 'Athlete';
-  const cleaned = local.replace(/[._-]+/g, ' ').trim();
-  if (!cleaned) return 'Athlete';
-  return cleaned
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 export function loadAuthUser(): AuthUser | null {
   if (!canUseStorage()) return null;
   try {
@@ -51,16 +40,6 @@ export function clearAuthUser() {
   window.localStorage.removeItem(AUTH_KEY);
 }
 
-export function createEmailUser(email: string): AuthUser {
-  const normalized = email.trim().toLowerCase();
-  return {
-    id: `u_${normalized}`,
-    name: nameFromEmail(normalized),
-    email: normalized,
-    mode: 'email',
-  };
-}
-
 export function createGuestUser(): AuthUser {
   return {
     id: `guest_${Date.now()}`,
@@ -71,7 +50,7 @@ export function createGuestUser(): AuthUser {
 }
 
 export function createSocialUser(
-  provider: 'google' | 'apple' | 'facebook',
+  provider: 'google',
   name: string,
   email: string,
 ): AuthUser {

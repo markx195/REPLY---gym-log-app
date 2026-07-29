@@ -3,22 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '@/components/ui';
-import { cn } from '@/lib/cn';
-
-type SocialProvider = 'google' | 'apple' | 'facebook';
 
 type LoginScreenProps = {
-  onLoginEmail: (email: string) => void | Promise<void>;
-  onLoginSocial: (provider: SocialProvider) => void | Promise<void>;
+  onLoginGoogle: () => void | Promise<void>;
   onLoginGuest: () => void | Promise<void>;
-  /** When true, buttons use Supabase (magic link / OAuth). */
   cloudEnabled?: boolean;
-  emailHint?: string | null;
 };
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
 
 function GoogleIcon() {
   return (
@@ -31,85 +21,27 @@ function GoogleIcon() {
   );
 }
 
-function AppleIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-    </svg>
-  );
-}
-
-function FacebookIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.792-4.668 4.533-4.668 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z" fill="#1877F2" />
-    </svg>
-  );
-}
-
 export function LoginScreen({
-  onLoginEmail,
-  onLoginSocial,
+  onLoginGoogle,
   onLoginGuest,
   cloudEnabled = false,
-  emailHint = null,
 }: LoginScreenProps) {
-  const [showEmail, setShowEmail] = useState(cloudEnabled);
-  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const badge = cloudEnabled ? 'Invite beta · free signup' : 'Invite beta · demo auth';
-  const socialSuffix = cloudEnabled ? '' : ' (demo)';
-  const emailLabel = cloudEnabled ? 'Send magic link' : 'Continue with email (demo)';
-  const emailHelper = cloudEnabled
-    ? 'Use a real inbox (Gmail, etc.). Check spam for the magic link.'
-    : 'No password — creates a local demo profile only.';
   const disclaimer = cloudEnabled
-    ? 'Sign up or log in with Google (any Google account works — first time creates your account). Email magic link also works. Guest stays on this device only.'
-    : 'Demo auth only — Google / Apple / Facebook / email create a local profile on this device. Nothing syncs to a real account yet. Clearing site data deletes progress.';
+    ? 'Continue with Google. If this Google account already exists, you will sign in. If not, we will create your account (sign up). Guest stays on this device only.'
+    : 'Demo auth only — Google creates a local demo profile on this device. Nothing syncs to a real account yet. Clearing site data deletes progress.';
 
-  const submitEmail = async () => {
-    if (!isValidEmail(email)) {
-      setError('Enter a valid email');
-      return;
-    }
-    setError(null);
-    setBusy('email');
-    try {
-      await onLoginEmail(email.trim());
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Sign-in failed';
-      const lower = message.toLowerCase();
-      if (lower.includes('unsupported provider') || lower.includes('validation')) {
-        setError(
-          cloudEnabled
-            ? 'Email provider is off in Supabase. Open Authentication → Providers → Email → Enable.'
-            : message,
-        );
-      } else {
-        setError(message);
-      }
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const submitSocial = async (provider: SocialProvider) => {
-    setBusy(provider);
+  const submitGoogle = async () => {
+    setBusy('google');
     setError(null);
     try {
-      await onLoginSocial(provider);
+      await onLoginGoogle();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign-in failed';
-      const lower = message.toLowerCase();
-      if (lower.includes('unsupported provider') || lower.includes('validation')) {
-        setError(
-          `Enable ${provider} in Supabase: Authentication → Providers → ${provider}. For now use email magic link.`,
-        );
-      } else {
-        setError(message);
-      }
+      setError(message);
     } finally {
       setBusy(null);
     }
@@ -165,168 +97,21 @@ export function LoginScreen({
         </div>
 
         <div className="space-y-3">
-          {error && !showEmail ? (
+          {error ? (
             <p className="rounded-[var(--radius-lg)] bg-[var(--accent-mist)] px-3 py-2 text-[13px] font-medium text-[var(--danger)]">
               {error}
             </p>
           ) : null}
 
-          {cloudEnabled ? (
-            <div className="space-y-3 fade-in">
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => void submitSocial('google')}
-                className="flex h-[var(--control-h)] w-full items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-[var(--white)] text-[16px] font-medium text-[var(--black)] shadow-[var(--shadow-md)] transition-all active:scale-[0.98] disabled:opacity-40"
-              >
-                <GoogleIcon />
-                {busy === 'google' ? 'Starting…' : 'Sign up / Log in with Google'}
-              </button>
-
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => void submitSocial('apple')}
-                className="flex h-[var(--control-h)] w-full items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-[var(--black)] text-[16px] font-medium text-white shadow-[var(--shadow-md)] transition-all active:scale-[0.98] disabled:opacity-40"
-              >
-                <AppleIcon />
-                {busy === 'apple' ? 'Starting…' : 'Sign up / Log in with Apple'}
-              </button>
-
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => void submitSocial('facebook')}
-                className="flex h-[var(--control-h)] w-full items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-[#1877F2] text-[16px] font-medium text-white shadow-[var(--shadow-md)] transition-all active:scale-[0.98] disabled:opacity-40"
-              >
-                <FacebookIcon />
-                {busy === 'facebook' ? 'Starting…' : 'Sign up / Log in with Facebook'}
-              </button>
-
-              <div className="flex items-center gap-4 py-1">
-                <div className="h-px flex-1 bg-[var(--border)]" />
-                <span className="text-[12px] font-medium text-[var(--muted-light)]">or email</span>
-                <div className="h-px flex-1 bg-[var(--border)]" />
-              </div>
-
-              <input
-                id="login-email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                placeholder="you@gmail.com"
-                value={email}
-                disabled={disabled}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  if (error) setError(null);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') void submitEmail();
-                }}
-                className={cn(
-                  'h-[var(--control-h)] w-full rounded-[var(--radius-xl)] border bg-[var(--white)] px-4 text-[16px] text-[var(--black)] outline-none transition-shadow placeholder:text-[var(--muted-light)]',
-                  error
-                    ? 'border-[var(--danger)] shadow-[0_0_0_3px_rgba(248,113,113,0.15)]'
-                    : 'border-[var(--border)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]',
-                )}
-              />
-              {error ? (
-                <p className="text-[13px] font-medium text-[var(--danger)]">{error}</p>
-              ) : emailHint ? (
-                <p className="text-[12px] font-medium text-[var(--accent)]">{emailHint}</p>
-              ) : (
-                <p className="text-[12px] text-[var(--muted-light)]">{emailHelper}</p>
-              )}
-              <Button fullWidth size="lg" disabled={disabled} onClick={() => void submitEmail()}>
-                {busy === 'email' ? 'Sending…' : emailLabel}
-              </Button>
-            </div>
-          ) : (
-            <>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => void submitSocial('google')}
-                className="flex h-[var(--control-h)] w-full items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-[var(--white)] text-[16px] font-medium text-[var(--black)] shadow-[var(--shadow-md)] transition-all active:scale-[0.98] disabled:opacity-40"
-              >
-                <GoogleIcon />
-                {busy === 'google' ? 'Starting…' : `Sign up / Log in with Google${socialSuffix}`}
-              </button>
-
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => void submitSocial('apple')}
-                className="flex h-[var(--control-h)] w-full items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-[var(--black)] text-[16px] font-medium text-white shadow-[var(--shadow-md)] transition-all active:scale-[0.98] disabled:opacity-40"
-              >
-                <AppleIcon />
-                {busy === 'apple' ? 'Starting…' : `Sign up / Log in with Apple${socialSuffix}`}
-              </button>
-
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => void submitSocial('facebook')}
-                className="flex h-[var(--control-h)] w-full items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-[#1877F2] text-[16px] font-medium text-white shadow-[var(--shadow-md)] transition-all active:scale-[0.98] disabled:opacity-40"
-              >
-                <FacebookIcon />
-                {busy === 'facebook' ? 'Starting…' : `Sign up / Log in with Facebook${socialSuffix}`}
-              </button>
-
-              <div className="flex items-center gap-4 py-1">
-                <div className="h-px flex-1 bg-[var(--border)]" />
-                <span className="text-[12px] font-medium text-[var(--muted-light)]">or</span>
-                <div className="h-px flex-1 bg-[var(--border)]" />
-              </div>
-
-              {showEmail ? (
-                <div className="space-y-3 fade-in">
-                  <input
-                    id="login-email-demo"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    autoFocus
-                    placeholder="you@email.com"
-                    value={email}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      setEmail(event.target.value);
-                      if (error) setError(null);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') void submitEmail();
-                    }}
-                    className={cn(
-                      'h-[var(--control-h)] w-full rounded-[var(--radius-xl)] border bg-[var(--white)] px-4 text-[16px] text-[var(--black)] outline-none transition-shadow placeholder:text-[var(--muted-light)]',
-                      error
-                        ? 'border-[var(--danger)] shadow-[0_0_0_3px_rgba(248,113,113,0.15)]'
-                        : 'border-[var(--border)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-soft)]',
-                    )}
-                  />
-                  {error ? (
-                    <p className="text-[13px] font-medium text-[var(--danger)]">{error}</p>
-                  ) : (
-                    <p className="text-[12px] text-[var(--muted-light)]">{emailHelper}</p>
-                  )}
-                  <Button fullWidth size="lg" disabled={disabled} onClick={() => void submitEmail()}>
-                    {busy === 'email' ? 'Signing in…' : emailLabel}
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="secondary"
-                  fullWidth
-                  size="lg"
-                  disabled={disabled}
-                  onClick={() => setShowEmail(true)}
-                >
-                  {emailLabel}
-                </Button>
-              )}
-            </>
-          )}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => void submitGoogle()}
+            className="flex h-[var(--control-h)] w-full items-center justify-center gap-3 rounded-[var(--radius-xl)] bg-[var(--white)] text-[16px] font-medium text-[var(--black)] shadow-[var(--shadow-md)] transition-all active:scale-[0.98] disabled:opacity-40"
+          >
+            <GoogleIcon />
+            {busy === 'google' ? 'Starting…' : 'Sign up / Log in with Google'}
+          </button>
 
           <button
             type="button"
