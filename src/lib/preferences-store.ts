@@ -40,6 +40,8 @@ export type UserPreferences = {
   heightCm?: number;
   weightKg?: number;
   targetWeightKg?: number;
+  /** Client clock when prefs last changed — cloud LWW merge. */
+  prefsUpdatedAt?: number;
 };
 
 const PREFS_KEY = 'reply.prefs.v1';
@@ -68,6 +70,13 @@ const defaults: UserPreferences = {
   locale: 'en',
   onboarded: false,
 };
+
+export function createDefaultPreferences(): UserPreferences {
+  return {
+    ...defaults,
+    availableGearIds: [...defaults.availableGearIds],
+  };
+}
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';

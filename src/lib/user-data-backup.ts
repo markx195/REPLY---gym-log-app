@@ -74,6 +74,7 @@ function normalizeReminder(value: unknown): ReminderSettings | null {
     days: days.length > 0 ? [...new Set(days)].sort((a, b) => a - b) : [...defaultReminder.days],
     lastPromptIso: typeof raw.lastPromptIso === 'string' ? raw.lastPromptIso : null,
     systemNotify: Boolean(raw.systemNotify),
+    updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : undefined,
   };
 }
 

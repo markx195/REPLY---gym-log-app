@@ -5,6 +5,8 @@ export type ReminderSettings = {
   lastPromptIso: string | null;
   /** Show OS notification when reminder fires (requires permission). */
   systemNotify: boolean;
+  /** Client clock when reminder last changed — cloud LWW merge. */
+  updatedAt?: number;
 };
 
 const KEY = 'reply.reminder.v1';
@@ -52,6 +54,7 @@ export function loadReminderSettings(): ReminderSettings {
       days: days.length > 0 ? [...new Set(days)].sort((a, b) => a - b) : [...defaultReminder.days],
       lastPromptIso: typeof parsed.lastPromptIso === 'string' ? parsed.lastPromptIso : null,
       systemNotify: Boolean(parsed.systemNotify),
+      updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : undefined,
     };
   } catch {
     return { ...defaultReminder, days: [...defaultReminder.days] };

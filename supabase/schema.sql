@@ -139,6 +139,7 @@ alter table public.favorites enable row level security;
 drop policy if exists "favorites_select_own" on public.favorites;
 drop policy if exists "favorites_insert_own" on public.favorites;
 drop policy if exists "favorites_update_own" on public.favorites;
+drop policy if exists "favorites_delete_own" on public.favorites;
 
 create policy "favorites_select_own"
   on public.favorites for select
@@ -152,6 +153,10 @@ create policy "favorites_update_own"
   on public.favorites for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+create policy "favorites_delete_own"
+  on public.favorites for delete
+  using (auth.uid() = user_id);
 
 -- Auto-create profile on signup ------------------------------------------
 create or replace function public.handle_new_user()

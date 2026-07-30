@@ -725,8 +725,8 @@ export function ProfileScreen({
         <p className="text-center text-[11px] leading-relaxed text-[var(--muted-light)]">
           {cloudSyncEnabled
             ? locale === 'vi'
-              ? 'Invite beta · prefs, history, lists & favorites đồng bộ cloud'
-              : 'Invite beta · prefs, history, lists & favorites sync to cloud'
+              ? 'Invite beta · prefs, history, streak, BMI, reminder & lists đồng bộ cloud'
+              : 'Invite beta · prefs, history, streak, BMI, reminder & lists sync to cloud'
             : locale === 'vi'
               ? 'Invite beta · dữ liệu chỉ trên thiết bị này'
               : 'Invite beta · data stays on this device'}
@@ -787,8 +787,8 @@ export function ProfileScreen({
               </p>
               <p className="text-[12px] leading-relaxed text-[var(--muted)]">
                 {isVi
-                  ? 'Prefs, lịch sử, list tùy chỉnh và favorites tự đẩy lên Supabase khi bạn thay đổi. Bấm Sync now để kéo + đẩy ngay.'
-                  : 'Prefs, history, custom lists, and favorites push to Supabase as you change them. Tap Sync now to pull + push immediately.'}
+                  ? 'Prefs, lịch sử (streak), BMI, reminder, list & favorites tự đẩy lên cloud. Sync now = đẩy trước rồi kéo về — không đè mất dữ liệu máy.'
+                  : 'Prefs, history (streak), BMI, reminder, lists & favorites auto-push to cloud. Sync now pushes first, then pulls — won’t wipe newer local data.'}
               </p>
               {syncMessage ? (
                 <p className="text-[12px] font-medium text-[var(--accent)]">{syncMessage}</p>

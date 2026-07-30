@@ -77,10 +77,9 @@ import {
   deleteCloudHistorySession,
   mergeLocalWithCloud,
   pullCloudSnapshot,
-  pushAllCustomWorkouts,
-  pushAllHistory,
   pushCustomWorkout,
   pushFavorites,
+  pushFullSnapshot,
   pushHistorySession,
   pushPreferences,
   upsertProfile,
@@ -93,6 +92,15 @@ import {
   signOutSupabase,
 } from '@/lib/supabase/auth';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import {
+  bindUserWorkspace,
+  loadFavorites,
+  parkActiveWorkspaceAndClear,
+  readActiveWorkspace,
+  saveFavorites,
+  snapshotWorkspaceToUser,
+  writeActiveWorkspace,
+} from '@/lib/user-workspace';
 import type { AppTab } from '@/types/navigation';
 
 type AppView =
@@ -103,7 +111,6 @@ type AppView =
 
 type Gate = 'booting' | 'auth' | 'onboarding' | 'entering' | 'ready';
 
-const FAVORITES_KEY = 'reply.favorites';
 const ENTER_MIN_MS = 900;
 const AUTH_RETURN_RETRY_DELAYS_MS = [0, 250, 700, 1400, 2400];
 
@@ -185,43 +192,73 @@ export function AppShell() {
     return waitForSupabaseSignIn();
   }, [waitForSupabaseSignIn]);
 
+  /** Push local first, then pull+merge, then push merged — avoids overwriting newer local edits. */
+  const syncRoundTrip = useCallback(
+    async (activeUser: AuthUser) => {
+      if (!cloudEnabled || activeUser.mode === 'guest') {
+        return { ok: false as const, error: 'Cloud sync unavailable' };
+      }
+
+      const local = readActiveWorkspace();
+      const pushFirst = await pushFullSnapshot(activeUser, {
+        preferences: local.preferences,
+        reminder: local.reminder,
+        history: local.history,
+        customWorkouts: local.customWorkouts,
+        favorites: local.favorites,
+      });
+      if (!pushFirst.ok) return pushFirst;
+
+      const snap = await pullCloudSnapshot();
+      if (!snap) {
+        return { ok: false as const, error: 'Could not read cloud snapshot' };
+      }
+
+      const merged = mergeLocalWithCloud({
+        localPrefs: local.preferences,
+        cloudPrefs: snap.preferences,
+        localReminder: local.reminder,
+        cloudReminder: snap.reminder,
+        localPrefsUpdatedAt: local.preferences.prefsUpdatedAt,
+        cloudPrefsUpdatedAt: snap.prefsUpdatedAt,
+        localHistory: local.history,
+        cloudHistory: snap.history,
+        localCustoms: local.customWorkouts,
+        cloudCustoms: snap.customWorkouts,
+        localFavorites: local.favorites,
+        cloudFavorites: snap.favorites,
+      });
+
+      savePreferences(merged.preferences);
+      saveHistory(merged.history);
+      saveCustomWorkouts(merged.customWorkouts);
+      saveFavorites(merged.favorites);
+      setPrefs(merged.preferences);
+      setHistory(merged.history);
+      setCustomWorkouts(merged.customWorkouts);
+      setFavoriteIds(merged.favorites);
+      if (merged.reminder) {
+        saveReminderSettings(merged.reminder);
+        setReminder(merged.reminder);
+      }
+      snapshotWorkspaceToUser(activeUser.id);
+
+      const pushMerged = await pushFullSnapshot(activeUser, {
+        preferences: merged.preferences,
+        reminder: merged.reminder ?? local.reminder,
+        history: merged.history,
+        customWorkouts: merged.customWorkouts,
+        favorites: merged.favorites,
+      });
+      return pushMerged;
+    },
+    [cloudEnabled],
+  );
+
   const pullLatestFromCloud = useCallback(async () => {
     if (!cloudEnabled || !user || user.mode === 'guest') return;
-    const snap = await pullCloudSnapshot();
-    if (!snap) return;
-
-    const localPrefs = prefs ?? loadPreferences();
-    let localFavorites = favoriteIds;
-    try {
-      const raw = window.localStorage.getItem(FAVORITES_KEY);
-      if (raw) localFavorites = JSON.parse(raw) as string[];
-    } catch {
-      // ignore
-    }
-
-    const merged = mergeLocalWithCloud({
-      localPrefs,
-      cloudPrefs: snap.preferences,
-      localHistory: history,
-      cloudHistory: snap.history,
-      localCustoms: customWorkouts,
-      cloudCustoms: snap.customWorkouts,
-      localFavorites,
-      cloudFavorites: snap.favorites,
-    });
-    savePreferences(merged.preferences);
-    saveHistory(merged.history);
-    saveCustomWorkouts(merged.customWorkouts);
-    try {
-      window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(merged.favorites));
-    } catch {
-      // ignore
-    }
-    setPrefs(merged.preferences);
-    setHistory(merged.history);
-    setCustomWorkouts(merged.customWorkouts);
-    setFavoriteIds(merged.favorites);
-  }, [cloudEnabled, customWorkouts, favoriteIds, history, prefs, user]);
+    await syncRoundTrip(user);
+  }, [cloudEnabled, syncRoundTrip, user]);
 
   // Apply theme to document
   useEffect(() => {
@@ -246,20 +283,7 @@ export function AppShell() {
     const boot = async () => {
       setLoadingMessage('Getting ready…');
       try {
-        let favoriteIdsLocal: string[] = [];
-        try {
-          const raw = window.localStorage.getItem(FAVORITES_KEY);
-          if (raw) favoriteIdsLocal = JSON.parse(raw) as string[];
-        } catch {
-          // ignore
-        }
-
-        let nextHistory = loadHistory();
         let nextUser = loadAuthUser();
-        let nextPrefs = loadPreferences();
-        let nextCustoms = loadCustomWorkouts();
-        const nextDraft = loadWorkoutDraft();
-        const nextReminder = loadReminderSettings();
 
         if (cloudEnabled) {
           const cloudUser = await getCloudUserWithRetry();
@@ -267,43 +291,94 @@ export function AppShell() {
           if (cloudUser) {
             nextUser = cloudUser;
             saveAuthUser(cloudUser);
+            // Bind account workspace + migrate guest progress on this device
+            const localWs = bindUserWorkspace(cloudUser.id, { migrateOrphans: true });
+            if (cancelled) return;
+
             const snap = await pullCloudSnapshot();
             if (cancelled) return;
+
+            let nextPrefs = localWs.preferences;
+            let nextHistory = localWs.history;
+            let nextCustoms = localWs.customWorkouts;
+            let favoriteIdsLocal = localWs.favorites;
+            let nextReminder = localWs.reminder;
+
             if (snap) {
               const merged = mergeLocalWithCloud({
-                localPrefs: nextPrefs,
+                localPrefs: localWs.preferences,
                 cloudPrefs: snap.preferences,
-                localHistory: nextHistory,
+                localReminder: localWs.reminder,
+                cloudReminder: snap.reminder,
+                localPrefsUpdatedAt: localWs.preferences.prefsUpdatedAt,
+                cloudPrefsUpdatedAt: snap.prefsUpdatedAt,
+                localHistory: localWs.history,
                 cloudHistory: snap.history,
-                localCustoms: nextCustoms,
+                localCustoms: localWs.customWorkouts,
                 cloudCustoms: snap.customWorkouts,
-                localFavorites: favoriteIdsLocal,
+                localFavorites: localWs.favorites,
                 cloudFavorites: snap.favorites,
               });
               nextPrefs = merged.preferences;
               nextHistory = merged.history;
               nextCustoms = merged.customWorkouts;
               favoriteIdsLocal = merged.favorites;
-              savePreferences(nextPrefs);
-              saveHistory(nextHistory);
-              saveCustomWorkouts(nextCustoms);
-              try {
-                window.localStorage.setItem(
-                  FAVORITES_KEY,
-                  JSON.stringify(favoriteIdsLocal),
-                );
-              } catch {
-                // ignore
-              }
-              void upsertProfile(cloudUser);
-              void pushPreferences(cloudUser, nextPrefs);
-              void pushAllHistory(cloudUser, nextHistory);
-              void pushAllCustomWorkouts(cloudUser, nextCustoms);
-              void pushFavorites(cloudUser, favoriteIdsLocal);
+              if (merged.reminder) nextReminder = merged.reminder;
+
+              writeActiveWorkspace({
+                preferences: nextPrefs,
+                history: nextHistory,
+                customWorkouts: nextCustoms,
+                favorites: favoriteIdsLocal,
+                reminder: nextReminder,
+                draft: localWs.draft,
+              });
+              snapshotWorkspaceToUser(cloudUser.id);
+
+              void pushFullSnapshot(cloudUser, {
+                preferences: nextPrefs,
+                reminder: nextReminder,
+                history: nextHistory,
+                customWorkouts: nextCustoms,
+                favorites: favoriteIdsLocal,
+              });
             }
-          } else if (nextUser && nextUser.mode !== 'guest') {
-            // Stale local cloud-looking user without session → clear to auth.
-            // Keep guest / demo local users when cloud is configured but unused.
+
+            if (cancelled) return;
+            setFavoriteIds(favoriteIdsLocal);
+            setHistory(nextHistory);
+            setUser(nextUser);
+            setPrefs(nextPrefs);
+            setCustomWorkouts(nextCustoms);
+            setDraft(localWs.draft);
+            setReminder(nextReminder);
+
+            if (shouldPromptReminder(nextReminder)) {
+              setReminderOpen(true);
+              const marked = markReminderPrompted(nextReminder);
+              setReminder(marked);
+              saveReminderSettings(marked);
+              if (nextReminder.systemNotify) {
+                void showWorkoutReminderNotification(nextPrefs.locale);
+              }
+            }
+
+            if (!nextPrefs.onboarded) setGate('onboarding');
+            else setGate('ready');
+
+            try {
+              const url = new URL(window.location.href);
+              if (url.searchParams.has('auth')) {
+                url.searchParams.delete('auth');
+                window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+              }
+            } catch {
+              // ignore
+            }
+            return;
+          }
+
+          if (nextUser && nextUser.mode !== 'guest') {
             if (
               !nextUser.id.startsWith('guest_') &&
               !nextUser.id.startsWith('u_') &&
@@ -317,33 +392,41 @@ export function AppShell() {
 
         if (cancelled) return;
 
-        setFavoriteIds(favoriteIdsLocal);
-        setHistory(nextHistory);
-        setUser(nextUser);
-        setPrefs(nextPrefs);
-        setCustomWorkouts(nextCustoms);
-        setDraft(nextDraft);
-        setReminder(nextReminder);
+        if (nextUser) {
+          const localWs = bindUserWorkspace(nextUser.id, {
+            migrateOrphans: nextUser.mode !== 'guest',
+          });
+          setFavoriteIds(localWs.favorites);
+          setHistory(localWs.history);
+          setPrefs(localWs.preferences);
+          setCustomWorkouts(localWs.customWorkouts);
+          setDraft(localWs.draft);
+          setReminder(localWs.reminder);
 
-        if (shouldPromptReminder(nextReminder)) {
-          setReminderOpen(true);
-          const marked = markReminderPrompted(nextReminder);
-          setReminder(marked);
-          saveReminderSettings(marked);
-          if (nextReminder.systemNotify) {
-            void showWorkoutReminderNotification(nextPrefs.locale);
+          if (shouldPromptReminder(localWs.reminder)) {
+            setReminderOpen(true);
+            const marked = markReminderPrompted(localWs.reminder);
+            setReminder(marked);
+            saveReminderSettings(marked);
+            if (localWs.reminder.systemNotify) {
+              void showWorkoutReminderNotification(localWs.preferences.locale);
+            }
           }
-        }
 
-        if (!nextUser) {
-          setGate('auth');
-        } else if (!nextPrefs.onboarded) {
-          setGate('onboarding');
+          setUser(nextUser);
+          if (!localWs.preferences.onboarded) setGate('onboarding');
+          else setGate('ready');
         } else {
-          setGate('ready');
+          setFavoriteIds(loadFavorites());
+          setHistory(loadHistory());
+          setPrefs(loadPreferences());
+          setCustomWorkouts(loadCustomWorkouts());
+          setDraft(loadWorkoutDraft());
+          setReminder(loadReminderSettings());
+          setUser(null);
+          setGate('auth');
         }
 
-        // Clean magic-link return flag from URL without a full reload.
         try {
           const url = new URL(window.location.href);
           if (url.searchParams.has('auth')) {
@@ -376,10 +459,26 @@ export function AppShell() {
         const cloudUser = authUserFromSupabase(session.user);
         saveAuthUser(cloudUser);
         setUser(cloudUser);
-        setGate((current) => {
-          if (current !== 'auth') return current;
-          return loadPreferences().onboarded ? 'ready' : 'onboarding';
-        });
+        if (event === 'SIGNED_IN') {
+          const localWs = bindUserWorkspace(cloudUser.id, { migrateOrphans: true });
+          setPrefs(localWs.preferences);
+          setHistory(localWs.history);
+          setCustomWorkouts(localWs.customWorkouts);
+          setFavoriteIds(localWs.favorites);
+          setReminder(localWs.reminder);
+          setDraft(localWs.draft);
+          void syncRoundTrip(cloudUser).then(() => {
+            setGate((current) => {
+              if (current !== 'auth' && current !== 'entering') return current;
+              return (loadPreferences().onboarded ? 'ready' : 'onboarding') as Gate;
+            });
+          });
+        } else {
+          setGate((current) => {
+            if (current !== 'auth') return current;
+            return loadPreferences().onboarded ? 'ready' : 'onboarding';
+          });
+        }
       }
 
       if (event === 'SIGNED_OUT') {
@@ -390,7 +489,7 @@ export function AppShell() {
     });
 
     return () => subscription.unsubscribe();
-  }, [cloudEnabled]);
+  }, [cloudEnabled, syncRoundTrip]);
 
   useEffect(() => {
     if (gate !== 'ready') return;
@@ -448,11 +547,8 @@ export function AppShell() {
   const persistFavorites = useCallback(
     (ids: string[]) => {
       setFavoriteIds(ids);
-      try {
-        window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
-      } catch {
-        // ignore
-      }
+      saveFavorites(ids);
+      if (user) snapshotWorkspaceToUser(user.id);
       if (user && user.mode !== 'guest') {
         void pushFavorites(user, ids);
       }
@@ -473,10 +569,15 @@ export function AppShell() {
 
   const updatePrefs = (partial: Partial<UserPreferences>) => {
     setPrefs((current) => {
-      const next = { ...current!, ...partial };
+      const next = {
+        ...current!,
+        ...partial,
+        prefsUpdatedAt: Date.now(),
+      };
       savePreferences(next);
+      if (user) snapshotWorkspaceToUser(user.id);
       if (user && user.mode !== 'guest') {
-        void pushPreferences(user, next);
+        void pushPreferences(user, next, reminder);
       }
       return next;
     });
@@ -500,64 +601,41 @@ export function AppShell() {
     setLoadingMessage(message);
     setGate('entering');
     saveAuthUser(nextUser);
+
+    const localWs = bindUserWorkspace(nextUser.id, {
+      migrateOrphans: nextUser.mode !== 'guest',
+    });
     setUser(nextUser);
+    setPrefs(localWs.preferences);
+    setHistory(localWs.history);
+    setCustomWorkouts(localWs.customWorkouts);
+    setFavoriteIds(localWs.favorites);
+    setReminder(localWs.reminder);
+    setDraft(localWs.draft);
+
     await delay(ENTER_MIN_MS);
 
     if (nextUser.mode !== 'guest' && cloudEnabled) {
-      void upsertProfile(nextUser);
-      const snap = await pullCloudSnapshot();
-      const localPrefs = loadPreferences();
-      const localHistory = loadHistory();
-      const localCustoms = loadCustomWorkouts();
-      let localFavorites: string[] = [];
-      try {
-        const raw = window.localStorage.getItem(FAVORITES_KEY);
-        if (raw) localFavorites = JSON.parse(raw) as string[];
-      } catch {
-        // ignore
+      const result = await syncRoundTrip(nextUser);
+      if (!result.ok) {
+        setSyncMessage(
+          localWs.preferences.locale === 'vi'
+            ? 'Đăng nhập ok · sync cloud lỗi, thử Sync now'
+            : 'Signed in · cloud sync failed, try Sync now',
+        );
       }
 
-      if (snap) {
-        const merged = mergeLocalWithCloud({
-          localPrefs,
-          cloudPrefs: snap.preferences,
-          localHistory,
-          cloudHistory: snap.history,
-          localCustoms,
-          cloudCustoms: snap.customWorkouts,
-          localFavorites,
-          cloudFavorites: snap.favorites,
-        });
-        savePreferences(merged.preferences);
-        saveHistory(merged.history);
-        saveCustomWorkouts(merged.customWorkouts);
-        try {
-          window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(merged.favorites));
-        } catch {
-          // ignore
-        }
-        setPrefs(merged.preferences);
-        setHistory(merged.history);
-        setCustomWorkouts(merged.customWorkouts);
-        setFavoriteIds(merged.favorites);
-        void pushPreferences(nextUser, merged.preferences);
-        void pushAllHistory(nextUser, merged.history);
-        void pushAllCustomWorkouts(nextUser, merged.customWorkouts);
-        void pushFavorites(nextUser, merged.favorites);
-
-        if (!merged.preferences.onboarded) {
-          setGate('onboarding');
-        } else {
-          setView({ type: 'tabs', tab: 'home' });
-          setGate('ready');
-        }
-        return;
+      const currentPrefs = loadPreferences();
+      if (!currentPrefs.onboarded) {
+        setGate('onboarding');
+      } else {
+        setView({ type: 'tabs', tab: 'home' });
+        setGate('ready');
       }
+      return;
     }
 
-    const currentPrefs = loadPreferences();
-    setPrefs(currentPrefs);
-    if (!currentPrefs.onboarded) {
+    if (!localWs.preferences.onboarded) {
       setGate('onboarding');
     } else {
       setView({ type: 'tabs', tab: 'home' });
@@ -567,6 +645,10 @@ export function AppShell() {
 
   const loginWithGoogle = async () => {
     if (cloudEnabled) {
+      // Park current (guest) progress so OAuth redirect can migrate it on return
+      const current = loadAuthUser();
+      if (current) snapshotWorkspaceToUser(current.id);
+      else snapshotWorkspaceToUser(`guest_pending_${Date.now()}`);
       await signInWithOAuthProvider('google');
       return;
     }
@@ -589,9 +671,18 @@ export function AppShell() {
   };
 
   const signOut = () => {
+    const locale = prefs?.locale ?? 'en';
+    if (user) parkActiveWorkspaceAndClear(user.id, locale);
+    else parkActiveWorkspaceAndClear(null, locale);
     void signOutSupabase();
     clearAuthUser();
     setUser(null);
+    setPrefs(null);
+    setHistory([]);
+    setCustomWorkouts([]);
+    setFavoriteIds([]);
+    setDraft(null);
+    setReminder(defaultReminder);
     setSyncMessage(null);
     setView({ type: 'tabs', tab: 'home' });
     setGate('auth');
@@ -603,58 +694,20 @@ export function AppShell() {
     setSyncBusy(true);
     setSyncMessage(locale === 'vi' ? 'Đang đồng bộ…' : 'Syncing…');
     try {
-      void upsertProfile(user);
-      const snap = await pullCloudSnapshot();
-      const localPrefs = prefs ?? loadPreferences();
-      let localFavorites = favoriteIds;
-      try {
-        const raw = window.localStorage.getItem(FAVORITES_KEY);
-        if (raw) localFavorites = JSON.parse(raw) as string[];
-      } catch {
-        // ignore
+      const result = await syncRoundTrip(user);
+      if (!result.ok) {
+        setSyncMessage(
+          locale === 'vi'
+            ? `Đồng bộ thất bại · ${result.error ?? 'thử lại'}`
+            : `Sync failed · ${result.error ?? 'try again'}`,
+        );
+        return;
       }
-
-      if (snap) {
-        const merged = mergeLocalWithCloud({
-          localPrefs,
-          cloudPrefs: snap.preferences,
-          localHistory: history,
-          cloudHistory: snap.history,
-          localCustoms: customWorkouts,
-          cloudCustoms: snap.customWorkouts,
-          localFavorites,
-          cloudFavorites: snap.favorites,
-        });
-        savePreferences(merged.preferences);
-        saveHistory(merged.history);
-        saveCustomWorkouts(merged.customWorkouts);
-        try {
-          window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(merged.favorites));
-        } catch {
-          // ignore
-        }
-        setPrefs(merged.preferences);
-        setHistory(merged.history);
-        setCustomWorkouts(merged.customWorkouts);
-        setFavoriteIds(merged.favorites);
-        await Promise.all([
-          pushPreferences(user, merged.preferences),
-          pushAllHistory(user, merged.history),
-          pushAllCustomWorkouts(user, merged.customWorkouts),
-          pushFavorites(user, merged.favorites),
-        ]);
-      } else {
-        await Promise.all([
-          pushPreferences(user, localPrefs),
-          pushAllHistory(user, history),
-          pushAllCustomWorkouts(user, customWorkouts),
-          pushFavorites(user, localFavorites),
-        ]);
-      }
+      const streak = computeWeeklyStats(loadHistory(), loadPreferences().weeklyGoal).streak;
       setSyncMessage(
         locale === 'vi'
-          ? `Đã đồng bộ · ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
-          : `Synced · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          ? `Đã đồng bộ · streak ${streak} · ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+          : `Synced · streak ${streak} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
       );
     } catch {
       setSyncMessage(locale === 'vi' ? 'Đồng bộ thất bại · thử lại' : 'Sync failed · try again');
@@ -734,6 +787,7 @@ export function AppShell() {
   const saveCustomList = (list: CustomWorkout) => {
     setCustomWorkouts((current) => {
       const next = upsertCustomWorkout(current, list);
+      if (user) snapshotWorkspaceToUser(user.id);
       if (user && user.mode !== 'guest') void pushCustomWorkout(user, list);
       return next;
     });
@@ -742,6 +796,7 @@ export function AppShell() {
   const removeCustomList = (id: string) => {
     setCustomWorkouts((current) => {
       const next = deleteCustomWorkout(current, id);
+      if (user) snapshotWorkspaceToUser(user.id);
       if (user && user.mode !== 'guest') void deleteCloudCustomWorkout(user, id);
       return next;
     });
@@ -751,6 +806,7 @@ export function AppShell() {
     const list = customWorkoutFromSession(session);
     setCustomWorkouts((current) => {
       const next = upsertCustomWorkout(current, list);
+      if (user) snapshotWorkspaceToUser(user.id);
       if (user && user.mode !== 'guest') void pushCustomWorkout(user, list);
       return next;
     });
@@ -761,6 +817,7 @@ export function AppShell() {
     setDraft(null);
     setHistory((current) => {
       const next = persistCompletedWorkout(current, session, durationMs);
+      if (user) snapshotWorkspaceToUser(user.id);
       if (user && user.mode !== 'guest' && next[0]) {
         void pushHistorySession(user, next[0]);
       }
@@ -812,8 +869,13 @@ export function AppShell() {
         ...current,
         ...partial,
         days: partial.days ?? current.days,
+        updatedAt: Date.now(),
       };
       saveReminderSettings(next);
+      if (user) snapshotWorkspaceToUser(user.id);
+      if (user && user.mode !== 'guest' && prefs) {
+        void pushPreferences(user, prefs, next);
+      }
       return next;
     });
   };
@@ -875,13 +937,15 @@ export function AppShell() {
       mode,
     );
 
-    setUser(applied.user);
-    if (applied.user) saveAuthUser(applied.user);
-    else clearAuthUser();
-
+    // Keep the currently signed-in cloud identity — never hijack session from a JSON file.
+    const activeUser = user;
     if (applied.preferences) {
-      setPrefs(applied.preferences);
-      savePreferences(applied.preferences);
+      const nextPrefs = {
+        ...applied.preferences,
+        prefsUpdatedAt: Date.now(),
+      };
+      setPrefs(nextPrefs);
+      savePreferences(nextPrefs);
     }
 
     setHistory(applied.history);
@@ -893,12 +957,36 @@ export function AppShell() {
     persistFavorites(applied.favorites);
 
     if (applied.reminder) {
-      setReminder(applied.reminder);
-      saveReminderSettings(applied.reminder);
+      const nextReminder = { ...applied.reminder, updatedAt: Date.now() };
+      setReminder(nextReminder);
+      saveReminderSettings(nextReminder);
+    }
+
+    if (activeUser) snapshotWorkspaceToUser(activeUser.id);
+
+    if (activeUser && activeUser.mode !== 'guest' && cloudEnabled) {
+      const local = readActiveWorkspace();
+      void pushFullSnapshot(activeUser, {
+        preferences: local.preferences,
+        reminder: local.reminder,
+        history: local.history,
+        customWorkouts: local.customWorkouts,
+        favorites: local.favorites,
+      }).then((result) => {
+        setSyncMessage(
+          result.ok
+            ? prefs?.locale === 'vi'
+              ? 'Đã nhập & đẩy lên cloud'
+              : 'Imported & pushed to cloud'
+            : prefs?.locale === 'vi'
+              ? 'Đã nhập local · cloud push lỗi'
+              : 'Imported locally · cloud push failed',
+        );
+      });
     }
 
     setView({ type: 'tabs', tab: 'profile' });
-    setGate(applied.user ? (applied.preferences?.onboarded ? 'ready' : 'onboarding') : 'auth');
+    setGate(activeUser ? (applied.preferences?.onboarded || prefs?.onboarded ? 'ready' : 'onboarding') : 'auth');
   };
 
   const enableSystemNotify = async () => {
