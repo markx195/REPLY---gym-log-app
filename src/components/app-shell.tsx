@@ -686,6 +686,10 @@ export function AppShell() {
       {
         defaultRestSeconds: prefs?.defaultRestSeconds,
         unit: prefs?.units,
+        bodyWeightKg: prefs?.weightKg,
+        heightCm: prefs?.heightCm,
+        level: prefs?.level,
+        locale: prefs?.locale,
       },
     );
     if (session.exercises.length === 0) return;
@@ -714,6 +718,10 @@ export function AppShell() {
     const sessionOptions = {
       defaultRestSeconds: prefs?.defaultRestSeconds,
       unit: prefs?.units,
+      bodyWeightKg: prefs?.weightKg,
+      heightCm: prefs?.heightCm,
+      level: prefs?.level,
+      locale: prefs?.locale,
     };
     const session = custom
       ? buildCustomSession(custom, lookup, sessionOptions)

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui';
 import { GearPicker } from '@/components/ui/gear-picker';
 import { cn } from '@/lib/cn';
+import { bmiZone, calcBmi } from '@/lib/body-metrics';
 import { gearPresetIds } from '@/data/exercises/gear-catalog';
 import type {
   FitnessLevel,
@@ -30,6 +31,7 @@ type StepId =
   | 'goal'
   | 'rhythm'
   | 'level'
+  | 'body'
   | 'gear'
   | 'focus'
   | 'joints'
@@ -40,6 +42,7 @@ const STEPS: StepId[] = [
   'goal',
   'rhythm',
   'level',
+  'body',
   'gear',
   'focus',
   'joints',
@@ -83,11 +86,30 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const [focusPriority, setFocusPriority] = useState<FocusPriority>('full-body');
   const [jointCare, setJointCare] = useState<JointCare>('none');
   const [sessionMin, setSessionMin] = useState(45);
+  const [heightCm, setHeightCm] = useState('170');
+  const [weightKg, setWeightKg] = useState('70');
 
   const step = STEPS[stepIndex];
   const total = STEPS.length;
   const progress = ((stepIndex + 1) / total) * 100;
   const isLast = stepIndex === total - 1;
+
+  const parsedHeight = Number(heightCm);
+  const parsedWeight = Number(weightKg);
+  const bodyValid =
+    Number.isFinite(parsedHeight) &&
+    Number.isFinite(parsedWeight) &&
+    parsedHeight >= 120 &&
+    parsedHeight <= 230 &&
+    parsedWeight >= 30 &&
+    parsedWeight <= 250;
+  const previewBmi = bodyValid ? calcBmi(parsedWeight, parsedHeight) : null;
+  const previewZone = previewBmi != null ? bmiZone(previewBmi) : null;
+
+  const bodyPartial = (): Pick<UserPreferences, 'heightCm' | 'weightKg'> | Record<string, never> =>
+    bodyValid
+      ? { heightCm: Math.round(parsedHeight), weightKg: Number(parsedWeight.toFixed(1)) }
+      : {};
 
   const finish = (partial?: Partial<UserPreferences>) => {
     onComplete({
@@ -103,6 +125,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       sessionMin,
       locale,
       onboarded: true,
+      ...bodyPartial(),
       ...partial,
     });
   };
@@ -133,31 +156,6 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
   const back = () => setStepIndex((i) => Math.max(0, i - 1));
 
-  const summary = useMemo(
-    () =>
-      `${goal}x/${locale === 'vi' ? 'tuần' : 'week'} · ${sessionMin} ${
-        locale === 'vi' ? 'phút' : 'min'
-      } · ${formatGearSummary(availableGearIds, locale)}`,
-    [availableGearIds, goal, locale, sessionMin],
-  );
-
-  const preview =
-    jointCare !== 'none'
-      ? locale === 'vi'
-        ? `Kế hoạch hôm nay sẽ ${jointCareLabels[jointCare].vi.toLowerCase()} nhưng vẫn giữ tiến độ.`
-        : `Today's plan will stay ${jointCareLabels[jointCare].en.toLowerCase()} while keeping progress on track.`
-      : sessionMin <= 30
-        ? locale === 'vi'
-          ? 'Buổi ngắn, mật độ cao, ít setup.'
-          : 'Quick density session with low setup time.'
-        : level === 'advanced'
-          ? locale === 'vi'
-            ? 'Ưu tiên compound nặng với xoay vòng thông minh.'
-            : 'Heavy compound emphasis with smart rotation.'
-          : locale === 'vi'
-            ? 'Volume cân bằng để xây dựng thói quen.'
-            : 'Balanced volume to build consistency and momentum.';
-
   const title =
     step === 'welcome'
       ? locale === 'vi'
@@ -175,34 +173,88 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             ? locale === 'vi'
               ? 'Kinh nghiệm của bạn?'
               : 'Your experience level?'
-            : step === 'gear'
+            : step === 'body'
               ? locale === 'vi'
-                ? 'Bạn tập với đồ gì?'
-                : 'What gear do you have?'
-              : step === 'focus'
+                ? 'Chiều cao & cân nặng?'
+                : 'Height & weight?'
+              : step === 'gear'
                 ? locale === 'vi'
-                  ? 'Ưu tiên nhóm nào?'
-                  : 'Any focus priority?'
-                : step === 'joints'
+                  ? 'Bạn tập với đồ gì?'
+                  : 'What gear do you have?'
+                : step === 'focus'
                   ? locale === 'vi'
-                    ? 'Cần bảo vệ khớp nào?'
-                    : 'Any joint to protect?'
-                  : locale === 'vi'
-                    ? 'Sẵn sàng bắt đầu'
-                    : 'You’re ready';
+                    ? 'Ưu tiên nhóm nào?'
+                    : 'Any focus priority?'
+                  : step === 'joints'
+                    ? locale === 'vi'
+                      ? 'Cần bảo vệ khớp nào?'
+                      : 'Any joint to protect?'
+                    : locale === 'vi'
+                      ? 'Sẵn sàng bắt đầu'
+                      : 'You’re ready';
 
   const subtitle =
     step === 'welcome'
       ? locale === 'vi'
         ? 'Trả lời vài câu ngắn — hoặc bỏ qua bất kỳ bước nào. Tài khoản Google mới cũng đăng ký được.'
         : 'A few short questions — skip any step. New Google accounts can sign up too.'
-      : step === 'ready'
+      : step === 'body'
         ? locale === 'vi'
-          ? 'Chúng tôi sẽ dùng cấu hình này để gợi ý buổi hôm nay.'
-          : 'We’ll use this to pick today’s session.'
-        : locale === 'vi'
-          ? 'Chọn một đáp án rồi tiếp tục, hoặc Skip.'
-          : 'Pick one, then continue — or skip.';
+          ? 'Dùng để tính BMI và gợi ý mức tạ phù hợp hơn cho bạn.'
+          : 'Used for BMI and smarter starting weight suggestions.'
+        : step === 'ready'
+          ? locale === 'vi'
+            ? 'Chúng tôi sẽ dùng cấu hình này để gợi ý buổi hôm nay.'
+            : 'We’ll use this to pick today’s session.'
+          : locale === 'vi'
+            ? 'Chọn một đáp án rồi tiếp tục, hoặc Skip.'
+            : 'Pick one, then continue — or skip.';
+
+  const zoneLabel =
+    previewZone == null
+      ? null
+      : locale === 'vi'
+        ? {
+            under: 'Thiếu cân',
+            healthy: 'Cân bằng',
+            over: 'Hơi cao',
+            high: 'Cao',
+          }[previewZone]
+        : {
+            under: 'Underweight',
+            healthy: 'Healthy',
+            over: 'Overweight',
+            high: 'High',
+          }[previewZone];
+
+  const summary = useMemo(() => {
+    const base = `${goal}x/${locale === 'vi' ? 'tuần' : 'week'} · ${sessionMin} ${
+      locale === 'vi' ? 'phút' : 'min'
+    } · ${formatGearSummary(availableGearIds, locale)}`;
+    if (!bodyValid || previewBmi == null) return base;
+    return `${base} · BMI ${previewBmi}`;
+  }, [availableGearIds, bodyValid, goal, locale, previewBmi, sessionMin]);
+
+  const preview =
+    jointCare !== 'none'
+      ? locale === 'vi'
+        ? `Kế hoạch hôm nay sẽ ${jointCareLabels[jointCare].vi.toLowerCase()} nhưng vẫn giữ tiến độ.`
+        : `Today's plan will stay ${jointCareLabels[jointCare].en.toLowerCase()} while keeping progress on track.`
+      : bodyValid
+        ? locale === 'vi'
+          ? 'Mức tạ gợi ý sẽ cân theo BMI & level của bạn.'
+          : 'Starting loads will be tuned to your BMI & level.'
+        : sessionMin <= 30
+          ? locale === 'vi'
+            ? 'Buổi ngắn, mật độ cao, ít setup.'
+            : 'Quick density session with low setup time.'
+          : level === 'advanced'
+            ? locale === 'vi'
+              ? 'Ưu tiên compound nặng với xoay vòng thông minh.'
+              : 'Heavy compound emphasis with smart rotation.'
+            : locale === 'vi'
+              ? 'Volume cân bằng để xây dựng thói quen.'
+              : 'Balanced volume to build consistency and momentum.';
 
   return (
     <div className="relative flex min-h-dvh w-full flex-col overflow-hidden slide-up">
@@ -320,6 +372,75 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                   {levelLabels[key][locale]}
                 </Chip>
               ))}
+            </div>
+          ) : null}
+
+          {step === 'body' ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="rounded-[var(--radius-xl)] bg-[var(--white)] p-4 shadow-[var(--shadow-sm)]">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+                    {locale === 'vi' ? 'Chiều cao' : 'Height'}
+                  </span>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={120}
+                      max={230}
+                      value={heightCm}
+                      onChange={(e) => setHeightCm(e.target.value)}
+                      className="w-full bg-transparent text-[28px] font-semibold tabular-nums text-[var(--black)] outline-none"
+                      aria-label={locale === 'vi' ? 'Chiều cao cm' : 'Height cm'}
+                    />
+                    <span className="text-[13px] font-semibold text-[var(--ink-soft)]">cm</span>
+                  </div>
+                </label>
+                <label className="rounded-[var(--radius-xl)] bg-[var(--white)] p-4 shadow-[var(--shadow-sm)]">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+                    {locale === 'vi' ? 'Cân nặng' : 'Weight'}
+                  </span>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={30}
+                      max={250}
+                      step={0.5}
+                      value={weightKg}
+                      onChange={(e) => setWeightKg(e.target.value)}
+                      className="w-full bg-transparent text-[28px] font-semibold tabular-nums text-[var(--black)] outline-none"
+                      aria-label={locale === 'vi' ? 'Cân nặng kg' : 'Weight kg'}
+                    />
+                    <span className="text-[13px] font-semibold text-[var(--ink-soft)]">kg</span>
+                  </div>
+                </label>
+              </div>
+
+              {previewBmi != null && zoneLabel ? (
+                <div className="rounded-[var(--radius-xl)] bg-[var(--white)] p-4 shadow-[var(--shadow-md)]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                    BMI
+                  </p>
+                  <p className="mt-1 text-[24px] font-semibold tabular-nums text-[var(--black)]">
+                    {previewBmi}{' '}
+                    <span className="text-[15px] font-semibold text-[var(--ink-soft)]">
+                      · {zoneLabel}
+                    </span>
+                  </p>
+                  <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[var(--ink-soft)]">
+                    {locale === 'vi'
+                      ? 'Sẽ dùng để gợi ý mức tạ khởi đầu theo người — bạn vẫn chỉnh được khi tập.'
+                      : 'We’ll use this to suggest starting loads for you — you can still tweak mid-set.'}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-[13px] font-medium text-[var(--muted)]">
+                  {locale === 'vi'
+                    ? 'Nhập chiều cao (120–230 cm) và cân (30–250 kg), hoặc Skip.'
+                    : 'Enter height (120–230 cm) and weight (30–250 kg), or skip.'}
+                </p>
+              )}
             </div>
           ) : null}
 

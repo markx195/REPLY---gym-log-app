@@ -1,3 +1,9 @@
+import {
+  startingLoadNote,
+  suggestStartingLoad,
+} from '@/lib/body-metrics';
+import type { FitnessLevel } from '@/lib/preferences-store';
+
 export type PreviousSet = {
   weight: number;
   reps: number;
@@ -198,12 +204,24 @@ export type ExerciseHistoryHint = {
   progressionNote?: string;
 };
 
+export type SessionCreateOptions = {
+  defaultRestSeconds?: number;
+  unit?: 'kg' | 'lbs';
+  bodyWeightKg?: number;
+  heightCm?: number;
+  level?: FitnessLevel;
+  locale?: 'en' | 'vi';
+};
+
 export function createSession(
   workoutId: string,
   historyLookup?: (exerciseId: string) => ExerciseHistoryHint | null,
-  options?: { defaultRestSeconds?: number; unit?: 'kg' | 'lbs' },
+  options?: SessionCreateOptions,
 ): WorkoutSession {
   const template = workoutSessions[workoutId] ?? workoutSessions['upper-chest'];
+  const locale = options?.locale ?? 'en';
+  const hasBody = Boolean(options?.bodyWeightKg && options.bodyWeightKg >= 30);
+
   return {
     ...template,
     startedAt: Date.now(),
@@ -212,13 +230,25 @@ export function createSession(
       const unit = options?.unit ?? exercise.unit;
       const fromHistory = historyLookup?.(exercise.id) ?? null;
       if (!fromHistory) {
+        const suggestedWeight = suggestStartingLoad({
+          templateWeight: exercise.suggestedWeight,
+          weightStep: exercise.weightStep,
+          bodyWeightKg: options?.bodyWeightKg,
+          heightCm: options?.heightCm,
+          level: options?.level,
+        });
         return {
           ...exercise,
           restSeconds,
           unit,
           sets: [],
-          previousSets: [...exercise.previousSets],
+          previousSets: [],
+          previousDate: '—',
+          lastWeight: suggestedWeight,
+          lastReps: exercise.targetReps,
+          suggestedWeight,
           suggestedReps: exercise.targetReps,
+          progressionNote: startingLoadNote(locale, hasBody),
         };
       }
 

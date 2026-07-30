@@ -6,6 +6,8 @@ import type {
   WorkoutSession,
 } from '@/data/session';
 import type { WorkoutTone } from '@/data/workouts';
+import { startingLoadNote, suggestStartingLoad } from '@/lib/body-metrics';
+import type { FitnessLevel } from '@/lib/preferences-store';
 
 export const CUSTOM_PREFIX = 'custom:';
 
@@ -193,18 +195,37 @@ export function customWorkoutFromSession(
 export function buildCustomSession(
   list: CustomWorkout,
   historyLookup?: (exerciseId: string) => ExerciseHistoryHint | null,
-  options?: { defaultRestSeconds?: number; unit?: 'kg' | 'lbs' },
+  options?: {
+    defaultRestSeconds?: number;
+    unit?: 'kg' | 'lbs';
+    bodyWeightKg?: number;
+    heightCm?: number;
+    level?: FitnessLevel;
+    locale?: 'en' | 'vi';
+  },
 ): WorkoutSession {
   const exercises: SessionExercise[] = [];
+  const locale = options?.locale ?? 'en';
+  const hasBody = Boolean(options?.bodyWeightKg && options.bodyWeightKg >= 30);
 
   for (const id of list.exerciseIds) {
     const catalog = getExerciseById(id);
     if (!catalog) continue;
     const step = weightStepFor(catalog.equipment);
     const fromHistory = historyLookup?.(catalog.id) ?? null;
-    const lastWeight = fromHistory?.lastWeight ?? (catalog.equipment === 'body only' ? 0 : 20);
+    const templateDefault = catalog.equipment === 'body only' ? 0 : 20;
+    const seeded =
+      fromHistory?.suggestedWeight ??
+      suggestStartingLoad({
+        templateWeight: templateDefault,
+        weightStep: step,
+        bodyWeightKg: options?.bodyWeightKg,
+        heightCm: options?.heightCm,
+        level: options?.level,
+      });
+    const lastWeight = fromHistory?.lastWeight ?? seeded;
     const lastReps = fromHistory?.lastReps ?? list.targetReps;
-    const suggestedWeight = fromHistory?.suggestedWeight ?? lastWeight;
+    const suggestedWeight = fromHistory?.suggestedWeight ?? seeded;
     const suggestedReps = fromHistory?.suggestedReps ?? list.targetReps;
 
     exercises.push({
@@ -214,7 +235,9 @@ export function buildCustomSession(
       targetReps: list.targetReps,
       suggestedWeight,
       suggestedReps,
-      progressionNote: fromHistory?.progressionNote,
+      progressionNote:
+        fromHistory?.progressionNote ??
+        (fromHistory ? undefined : startingLoadNote(locale, hasBody)),
       lastWeight,
       lastReps,
       previousDate: fromHistory?.previousDate ?? '—',

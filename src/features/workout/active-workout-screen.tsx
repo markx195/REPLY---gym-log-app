@@ -510,12 +510,44 @@ export function ActiveWorkoutScreen({
               className="pointer-events-none absolute -right-12 -top-16 h-44 w-44 rounded-full bg-[var(--accent)]/18 blur-3xl"
             />
 
-            <div className="relative mb-4 flex items-end justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+            <div className="relative mb-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
                   {t('setLive', { set: currentSet })}
                 </p>
-                <p className="mt-1 flex items-baseline gap-1 tabular-nums">
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {Array.from({ length: exercise.targetSets }, (_, i) => {
+                    const logged = exercise.sets.filter((s) => !s.isWarmup)[i];
+                    const active = i + 1 === currentSet;
+                    return (
+                      <div
+                        key={i}
+                        title={logged ? `${logged.weight}×${logged.reps}` : `Set ${i + 1}`}
+                        className={cn(
+                          'flex h-7 w-7 flex-col items-center justify-center rounded-full text-[11px] font-semibold tabular-nums transition-all',
+                          logged
+                            ? 'bg-[var(--accent)] text-white shadow-[var(--shadow-sm)]'
+                            : active
+                              ? 'bg-[var(--accent-mist)] text-[var(--black)] ring-2 ring-[var(--accent)]/45'
+                              : 'bg-[var(--white)] text-[var(--muted)]',
+                        )}
+                      >
+                        <span className="leading-none">{i + 1}</span>
+                        <span
+                          className={cn(
+                            'mt-0.5 h-0.5 w-2.5 rounded-full',
+                            logged || active ? 'bg-current opacity-70' : 'bg-transparent',
+                          )}
+                          aria-hidden
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 tabular-nums">
                   <span className="text-[40px] font-semibold leading-none tracking-[-0.05em] text-[var(--black)]">
                     {weight}
                   </span>
@@ -543,33 +575,6 @@ export function ActiveWorkoutScreen({
                       ? `${delta} ${exercise.unit} ${t('vsLast')}`
                       : t('matchLastOrPush')}
                 </p>
-              </div>
-
-              <div className="flex shrink-0 gap-1.5">
-                {Array.from({ length: exercise.targetSets }, (_, i) => {
-                  const logged = exercise.sets.filter((s) => !s.isWarmup)[i];
-                  const active = i + 1 === currentSet;
-                  return (
-                    <div
-                      key={i}
-                      className={cn(
-                        'flex h-12 min-w-[44px] flex-col items-center justify-center rounded-2xl px-1.5 text-center transition-all',
-                        logged
-                          ? 'bg-[var(--accent)] text-white shadow-[var(--shadow-sm)]'
-                          : active
-                            ? 'bg-[var(--accent-mist)] ring-2 ring-[var(--accent)]/45 text-[var(--black)]'
-                            : 'bg-[var(--white)] text-[var(--muted)]',
-                      )}
-                    >
-                      <span className="text-[9px] font-semibold uppercase tracking-wide opacity-80">
-                        {i + 1}
-                      </span>
-                      <span className="text-[10px] font-semibold leading-none tabular-nums">
-                        {logged ? `${logged.weight}×${logged.reps}` : '—'}
-                      </span>
-                    </div>
-                  );
-                })}
               </div>
             </div>
 
